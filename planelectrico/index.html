@@ -331,6 +331,9 @@
     transform:translateX(-50%);max-width:92vw;overflow:hidden;text-overflow:ellipsis;
     box-shadow:0 6px 20px rgba(0,0,0,.35);}
   #lupaChip b{font-family:var(--mono);color:var(--accent);}
+/* Modo embebido dentro de ElectroPlan Pro: la cotización y la instalación viven en la app madre */
+.embed [data-tab="cot"]{ display:none !important; }
+.embed #btnInstall{ display:none !important; }
 </style>
 
 <div class="topbar">
@@ -3871,7 +3874,12 @@ try{
 }catch(e){}
 
 // init
+if(window.parent!==window) document.documentElement.classList.add("embed"); // embebida en ElectroPlan Pro
 if(!loadSaved()){ seed(); projectId=newProjectId(); projectName="Casa de ejemplo"; }
+// Embebida: la app madre puede pedir un proyecto específico con ?proyecto=<nombre>
+try{ const qP=new URLSearchParams(location.search).get("proyecto");
+  if(qP){ const ixQ=loadIndex(); const mQ=ixQ.find(p=>String(p.nombre||"").trim().toLowerCase()===qP.trim().toLowerCase());
+    if(mQ&&mQ.id!==projectId) openProject(mQ.id,false); } }catch(e){}
 normalizeDoc(doc);
 aplicarModo();
 setTool("select");
