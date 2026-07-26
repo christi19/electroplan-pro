@@ -51,13 +51,19 @@
   .body{flex:1;display:flex;min-height:0;position:relative;}
 
   /* Tool rail */
-  .rail{width:64px;background:var(--panel);border-right:1px solid var(--line);
-    display:flex;flex-direction:column;gap:4px;padding:8px 6px;overflow-y:auto;flex:none;}
+  .rail{width:70px;background:var(--panel);border-right:1px solid var(--line);
+    display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 4px;overflow-y:auto;flex:none;
+    scrollbar-width:thin;scrollbar-color:var(--line) transparent;}
+  /* Scrollbar fino estilo Illustrator: nunca tapa los íconos */
+  .rail::-webkit-scrollbar{width:5px;}
+  .rail::-webkit-scrollbar-track{background:transparent;}
+  .rail::-webkit-scrollbar-thumb{background:var(--line);border-radius:99px;}
+  .rail::-webkit-scrollbar-thumb:hover{background:var(--soft);}
   .tool{width:52px;height:52px;flex:none;border-radius:9px;flex-direction:column;gap:2px;
     font-size:10px;line-height:1;padding:4px;color:var(--soft);}
   .tool .ic{font-size:19px;transition:transform .14s ease;}
   .tool.on{color:#fff;}
-  .rail .sep{height:1px;background:var(--line);margin:4px 4px;}
+  .rail .sep{height:1px;width:52px;background:var(--line);margin:4px 0;flex:none;}
   /* Hover en el rail: el ícono crece y se resalta para verlo bien (solo con mouse real, nunca en táctil) */
   @media (hover:hover){
     .tool{transition:background .14s ease,color .14s ease;}
@@ -104,8 +110,14 @@
   .riser3d{background:#b39d7c;border:1px solid rgba(0,0,0,.28);}
 
   /* Inspector / right panel */
-  .side{width:290px;background:var(--panel);border-left:1px solid var(--line);
-    display:flex;flex-direction:column;flex:none;overflow:hidden;}
+  .side{width:var(--sidew,290px);min-width:240px;max-width:560px;background:var(--panel);border-left:1px solid var(--line);
+    display:flex;flex-direction:column;flex:none;overflow:hidden;position:relative;}
+  /* Divisor arrastrable estilo Illustrator: agarrá el borde y corré la línea del contenedor */
+  #sideResize{position:absolute;left:-4px;top:0;bottom:0;width:9px;cursor:col-resize;z-index:5;touch-action:none;}
+  #sideResize::after{content:"";position:absolute;left:3px;top:0;bottom:0;width:2px;background:transparent;transition:background .15s ease;}
+  #sideResize:hover::after,#sideResize.arrastrando::after{background:var(--accent);}
+  #sideResize:focus-visible{outline:2px solid var(--accent);outline-offset:-2px;}
+  body.mobile #sideResize{display:none;}
   .tabs{display:flex;border-bottom:1px solid var(--line);}
   .tabs button{flex:1;border:0;border-radius:0;background:transparent;color:var(--soft);
     border-bottom:2px solid transparent;min-height:42px;font-size:12px;}
@@ -204,7 +216,8 @@
   .lyrname{flex:1;font-size:12.5px;color:var(--ink);}
   .lyrop{width:68px;accent-color:var(--accent);}
   /* Biblioteca de símbolos buscable (inspector sin selección) */
-  .symgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:8px;}
+  /* Grilla fluida: al agrandar el panel entran más columnas, las fichas no se estiran */
+  .symgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(66px,1fr));gap:6px;margin-top:8px;}
   .symgrid button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:7px 2px;min-height:52px;font-size:17px;}
   .symgrid small{font-size:9px;color:var(--soft);line-height:1.05;text-align:center;}
   .floorbar{position:absolute;left:12px;bottom:12px;display:flex;gap:4px;background:var(--panel);
@@ -414,11 +427,13 @@
   </div>
 
   <div class="side" id="side">
+    <div id="sideResize" role="separator" aria-orientation="vertical" tabindex="0"
+      aria-label="Ancho del panel — arrastrá o usá las flechas ← →" title="Arrastrá para cambiar el ancho del panel"></div>
     <div class="sheethandle" id="sheethandle"><i></i></div>
     <button class="sheethint" id="sheethint">▲ Editar <b></b></button>
     <div class="tabs">
       <button data-tab="insp" class="on">Inspector</button>
-      <button data-tab="cir">⚡ Circuitos</button>
+      <button data-tab="cir">⚡ Circuitos <span id="cirBadge" class="cotbadge" hidden>0</span></button>
       <button data-tab="layers">Capas</button>
       <button data-tab="cot">Cotización <span id="cotBadge" class="cotbadge" hidden>0</span></button>
     </div>
@@ -1023,8 +1038,11 @@ function render(skipPanel){
   const nodosPiso=new Set(); doc.walls.forEach(w=>{ if(enPiso(w)){ nodosPiso.add(w.a); nodosPiso.add(w.b); } });
   if(draft&&draft.startNode) nodosPiso.add(draft.startNode);
   if(!vistaCliente) Object.keys(doc.nodes).forEach(id=>{ if(!nodosPiso.has(id))return; const n=doc.nodes[id];
+    // Ancla estilo Illustrator: radio constante en pantalla (5px) y borde de 2px reales.
+    // OJO: con vector-effect el stroke-width se lee en px de PANTALLA — nunca dividirlo
+    // entre scale (doble compensación: globos al alejar, borde invisible al acercar).
     const c=el("circle",{cx:n.x,cy:n.y,r:5/scale,fill:"var(--panel)",stroke:"var(--blue)",
-      "stroke-width":2/scale,"data-node":id,"data-kind":"node",style:"cursor:grab",
+      "stroke-width":2,"data-node":id,"data-kind":"node",style:"cursor:grab",
       "vector-effect":"non-scaling-stroke"});
     gWalls.appendChild(c); });
 
@@ -2598,7 +2616,7 @@ function renderCircuits(p){
   // sin asignar
   const libres=doc.elements.filter(e=>esElectrico(e)&&!e.circuitId);
   if(libres.length) html+=`<p class="muted" style="margin-top:12px">⚠ <b>${libres.length}</b> punto(s) sin circuito. <button id="asigTodo" class="ghost" style="min-height:26px;padding:2px 8px">Asignar al 1º</button></p>`;
-  html+=`<div class="disclaimer">Cargas de referencia: toma 180 VA · lámpara 100 VA (NEC). La verificación del 80% es una guía visual — <b>no sustituye el cálculo del profesional responsable</b>. El cable es ESTIMACIÓN (ruta manhattan al tablero + 4 m por punto + ${settings.desperdicio}% desperdicio).</div>`;
+  html+=`<div class="disclaimer">Cargas de referencia: toma 180 VA · lámpara 100 VA (NEC). La verificación del 80% es una guía visual — <b>no sustituye el cálculo del profesional responsable</b>. El cable es ESTIMACIÓN (en escuadra hasta el tablero, como se tiende el tubo, + 4 m por punto + ${settings.desperdicio}% desperdicio).</div>`;
   p.innerHTML=html;
   document.getElementById("addCir").onclick=()=>{ addCircuit(); pushHistory(); renderPanel(); };
   document.getElementById("verUni").onclick=showUnifilar;
@@ -2670,12 +2688,17 @@ function renderCot(p){
   const {elemCount,elemCost,cableTotal,cableCost,puntos,manoObra,tubM,tubCost,total}=T;
   const cirRows=doc.circuits.map(c=>{ const m=circuitCableM(c);
     return `<tr><td><span style="color:${c.color}">⬤</span> ${c.name} (${c.amps}A · ${AWG_BY_BREAKER[c.amps]||"?"})</td><td class="n">${circuitPoints(c)} pts</td><td class="n">${m.toFixed(1)} m</td></tr>`; }).join("");
-  const erows=Object.keys(elemCount).map(k=>{ const i=elInfo(k);
+  const erows=Object.keys(elemCount).map(k=>{ const i=elInfo(k); const sinP=priceOf(k)===0;
     return `<div class="cartrow"><span class="ci">${i.icon}</span>
-      <div class="cn">${i.name}<small>${mon(priceOf(k))} c/u</small></div>
+      <div class="cn">${i.name}<small>${sinP?'<b style="color:var(--danger)">⚠ sin precio — escribilo aquí →</b>':mon(priceOf(k))+" c/u"}</small></div>
       <span class="cq">×${elemCount[k]}</span>
-      <input data-price="${k}" type="number" step="0.01" value="${priceOf(k)}" title="Precio unitario (${M}) — todos los ${i.name} de este proyecto">
+      <input data-price="${k}" type="number" step="0.01" value="${priceOf(k)}" title="Precio unitario (${M}) — todos los ${i.name} de este proyecto"${sinP?' style="border-color:var(--danger)"':''}>
       <b class="cs">${mon(elemCount[k]*priceOf(k))}</b></div>`; }).join("");
+  const sinPrecio=Object.keys(elemCount).filter(k=>priceOf(k)===0).length;
+  const avisos=[];
+  if(puntos>0&&cableTotal===0) avisos.push(`⚠ Este total <b>NO incluye cable</b> — poné el ⚡ Tablero y creá circuitos para estimarlo. <button data-gocir="1" class="ghost" style="min-height:30px;padding:3px 10px">⚡ Ir a Circuitos</button>`);
+  if(sinPrecio>0) avisos.push(`⚠ ${sinPrecio} producto${sinPrecio===1?"":"s"} del plano sin precio: suma${sinPrecio===1?"":"n"} ${M}0 al total. Escribí el precio en su casilla.`);
+  const avisosHTML=avisos.length?`<div style="border:1px solid var(--danger);border-radius:8px;padding:8px 10px;margin:0 0 10px;font-size:12.5px;line-height:1.5">${avisos.join("<br>")}</div>`:"";
   const usados=Object.keys(elemCount);
   const catRows=usados.map(k=>`<tr><td>${elInfo(k).icon} ${elInfo(k).name}</td>
     <td class="n"><input data-price="${k}" type="number" value="${priceOf(k)}" style="width:92px;background:var(--panel2);border:1px solid var(--line);border-radius:6px;color:var(--ink);padding:3px 6px;text-align:right"></td></tr>`).join("");
@@ -2686,6 +2709,7 @@ function renderCot(p){
     <table class="cot"><tbody>${cirRows||'<tr><td colspan="3" class="muted">Sin circuitos — créalos en ⚡ Circuitos</td></tr>'}
     ${cirRows?`<tr><td><b>Cable total</b></td><td></td><td class="n"><b>${cableTotal.toFixed(1)} m · ${mon(cableCost)}</b></td></tr>`:""}</tbody></table>
     <div class="kdt sec sep" style="margin:14px 0 8px">Resumen</div>
+    ${avisosHTML}
     <table class="cot"><tbody>
       <tr><td>Materiales (dispositivos)</td><td></td><td class="n">${mon(elemCost)}</td></tr>
       <tr><td>Cable (${cableTotal.toFixed(0)} m est.)</td><td></td><td class="n">${mon(cableCost)}</td></tr>
@@ -2707,7 +2731,8 @@ function renderCot(p){
       <button id="catReset" class="ghost" style="width:100%;justify-content:center;margin-top:6px;min-height:30px">↺ Restaurar precios de fábrica</button>
     </details>
     <button id="cotExp" style="width:100%;justify-content:center;margin-top:14px">⇩ Exportar cotización (CSV)</button>
-    <div class="disclaimer">Toda cantidad es <b>ESTIMACIÓN revisable</b>: ajusta tu catálogo de precios antes de enviarla al cliente. Los precios de fábrica en ₡ son referencias aproximadas de ferretería CR (jul-2026) — edítalos con TUS precios. El cable usa ruta manhattan al tablero + 4 m/punto + desperdicio.</div>`;
+    <div class="disclaimer">Toda cantidad es <b>ESTIMACIÓN revisable</b>: ajusta tu catálogo de precios antes de enviarla al cliente. Los precios de fábrica en ₡ son referencias aproximadas de ferretería CR (jul-2026) — edítalos con TUS precios. El cable se estima en escuadra hasta el tablero (horizontal + vertical, como se tiende el tubo) + 4 m por punto + desperdicio.</div>`;
+  const gc=p.querySelector("[data-gocir]"); if(gc) gc.onclick=()=>abrirTab("cir");
   document.getElementById("c_mon").onchange=e=>{ const nm=e.target.value;
     if(nm!==settings.moneda){ settings.moneda=nm; settings.precios={};
       settings.precioPunto=DEF_MONEDA[nm].punto; settings.precioCableM=DEF_MONEDA[nm].cable; settings.precioTuboM=DEF_MONEDA[nm].tubo; doc.precios={};
@@ -2753,6 +2778,11 @@ function renderStatus(){ const s=document.getElementById("status");
 // badge del carrito en la pestaña Cotización — se actualiza en cada render (con guard de firma)
 let _cotSig="";
 function updateCotBadge(){ const b=document.getElementById("cotBadge"); if(!b) return;
+  // badge de puntos SIN circuito en la pestaña ⚡ — el cable no se estima hasta asignarlos
+  const bc=document.getElementById("cirBadge"); if(bc){
+    const sc=doc.elements.filter(e=>esElectrico(e)&&!e.circuitId).length;
+    bc.hidden=!sc; bc.textContent=sc>99?"99+":sc;
+    bc.title=sc+" punto"+(sc===1?"":"s")+" sin circuito — tocá para asignarlos"; }
   const t=cotTotales(); const sig=t.items+"|"+Math.round(t.total);
   if(sig===_cotSig) return;
   const crecio=+(_cotSig.split("|")[0]||0)<t.items; _cotSig=sig;
@@ -3880,6 +3910,26 @@ if(!loadSaved()){ seed(); projectId=newProjectId(); projectName="Casa de ejemplo
 try{ const qP=new URLSearchParams(location.search).get("proyecto");
   if(qP){ const ixQ=loadIndex(); const mQ=ixQ.find(p=>String(p.nombre||"").trim().toLowerCase()===qP.trim().toLowerCase());
     if(mQ&&mQ.id!==projectId) openProject(mQ.id,false); } }catch(e){}
+// Divisor del panel lateral (escritorio): corré la línea del contenedor, estilo Illustrator.
+(function(){
+  const rz=document.getElementById("sideResize"); if(!rz) return;
+  const CLAMP=w=>Math.max(240,Math.min(560,w));
+  const setW=w=>document.documentElement.style.setProperty("--sidew",CLAMP(w)+"px");
+  if(settings.sideW) setW(settings.sideW); // restaurar ancho guardado (el rAF del init recalibra el lienzo)
+  const anchoSide=()=>document.getElementById("side").getBoundingClientRect().width;
+  let drag=null;
+  rz.addEventListener("pointerdown",ev=>{ drag={x:ev.clientX,w:anchoSide()};
+    rz.classList.add("arrastrando"); try{ rz.setPointerCapture(ev.pointerId); }catch(e){} ev.preventDefault(); });
+  rz.addEventListener("pointermove",ev=>{ if(!drag) return;
+    setW(drag.w+(drag.x-ev.clientX)); updateScale(); });
+  const fin=()=>{ if(!drag) return; drag=null; rz.classList.remove("arrastrando");
+    settings.sideW=Math.round(anchoSide()); scheduleSave(); render(true); };
+  rz.addEventListener("pointerup",fin); rz.addEventListener("pointercancel",fin);
+  rz.addEventListener("keydown",ev=>{ let d=0;
+    if(ev.key==="ArrowLeft") d=16; else if(ev.key==="ArrowRight") d=-16; else return;
+    setW(anchoSide()+d); settings.sideW=Math.round(anchoSide()); scheduleSave();
+    updateScale(); render(true); ev.preventDefault(); });
+})();
 normalizeDoc(doc);
 aplicarModo();
 setTool("select");
