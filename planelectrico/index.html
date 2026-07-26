@@ -1034,10 +1034,17 @@ function render(skipPanel){
     if(st.largo*scale>50){ tt.textContent="SUBE · "+c.N+" esc."+(c.comoda?"":" ⚠"); gWalls.appendChild(tt); }
   });
 
-  // nodos (anclas)
-  const nodosPiso=new Set(); doc.walls.forEach(w=>{ if(enPiso(w)){ nodosPiso.add(w.a); nodosPiso.add(w.b); } });
+  // nodos (anclas) — LOD estilo Illustrator: si la pared más larga que toca el nodo
+  // mide menos de 48px EN PANTALLA (menos que un dedo), el ancla no se dibuja:
+  // alejado, el plano se lee limpio; para editar anclas igual hay que acercarse
+  const nodosPiso=new Set(); const nodoL={};
+  doc.walls.forEach(w=>{ if(enPiso(w)){ nodosPiso.add(w.a); nodosPiso.add(w.b);
+    const Lw=wallLen(w); if(Lw>(nodoL[w.a]||0))nodoL[w.a]=Lw; if(Lw>(nodoL[w.b]||0))nodoL[w.b]=Lw; } });
   if(draft&&draft.startNode) nodosPiso.add(draft.startNode);
-  if(!vistaCliente) Object.keys(doc.nodes).forEach(id=>{ if(!nodosPiso.has(id))return; const n=doc.nodes[id];
+  if(!vistaCliente) Object.keys(doc.nodes).forEach(id=>{ if(!nodosPiso.has(id))return;
+    const esDraft=draft&&(id===draft.startNode||id===draft.firstNode);
+    if(!esDraft&&(nodoL[id]||0)*scale<48) return; // LOD: sin espacio no hay ancla
+    const n=doc.nodes[id];
     // Ancla estilo Illustrator: radio constante en pantalla (5px) y borde de 2px reales.
     // OJO: con vector-effect el stroke-width se lee en px de PANTALLA — nunca dividirlo
     // entre scale (doble compensación: globos al alejar, borde invisible al acercar).
@@ -1519,7 +1526,7 @@ function updateHint(){ const h=document.getElementById("hint");
   if(pintarFormato){ h.textContent="🖌 MODO PINCEL: tocá objetos del mismo tipo para copiarles el formato · Esc para terminar."; h.style.display=""; return; }
   if(vistaCliente){ h.textContent="✨ VISTA CLIENTE: plano limpio de solo lectura — tocá ✨ para volver a editar."; h.style.display=""; return; }
   const map={ select:"Clic: seleccionar · arrastre en vacío: marco · Ctrl+clic añade · ◇ de una pared seleccionada = CURVARLA (arrástralo, como en Illustrator) · Shift+arrastre o ✋: mover lienzo.",
-    wall:"Clic para iniciar; clic para fijar cada tramo. Enter/Esc/doble-clic termina. Shift = 45°.",
+    wall:"Tocá para empezar; estirá (apretado o clic-clic) y al soltar queda el ancla. Tocá el punto inicial para cerrar la figura. Enter/Esc/doble-clic termina. Shift = 45°.",
     curve:"Toca INICIO y FIN: la pared sale curva. Luego arrastrá el rombo ◇ del centro para ajustar cuánto se curva (al centro = recta).",
     room:"Elige la FORMA (▭ L T U) arriba a la izquierda y arrastra: el contorno completo sale de un solo gesto.",
     door:"ARRASTRA sobre una pared: donde presionas empieza la puerta y donde sueltas termina (medida en vivo). Clic corto = 80 cm estándar.",
@@ -1891,16 +1898,11 @@ function onDown(ev){
   if(tool==="marquee"){ action={type:"marquee",x0:w.x,y0:w.y,x1:w.x,y1:w.y}; render(); return; } // Marco: siempre selección por caja
   if(tool==="select"){ return startSelect(ev,w); }
 
-  if(tool==="wall"){ let sp;
-    if(draft){ sp=snapWorld(w,null); let b=applyLock(draft.start,sp,ev.shiftKey);
-      if(!sp.node) b=refSnapPoint(draft.start,b);
-      const bn=sp.node||findOrCreateNode(b); const an=draft.startNode;
-      const wid=uid("w");
-      doc.walls.push({id:wid,a:an,b:bn,name:"",space:draft.space||"",material:"Ladrillo",piso:doc.pisoActivo});
-      addXP(6); const created=(draft.created||[]).concat(wid);
-      draft={type:"wall",start:N(bn),startNode:bn,cursor:N(bn),space:draft.space,created}; pushHistory(); render();
-    } else { sp=snapWorld(w,null); const an=sp.node||findOrCreateNode({x:sp.x,y:sp.y});
-      draft={type:"wall",start:N(an),startNode:an,cursor:N(an),created:[]}; render(); }
+  if(tool==="wall"){
+    // El tramo se fija al SOLTAR (commitTramoPared en onUp): así funciona el clic-clic
+    // de siempre Y el arrastre estilo Illustrator (apretar, estirar, soltar = ancla).
+    if(!draft){ const sp=snapWorld(w,null); const an=sp.node||findOrCreateNode({x:sp.x,y:sp.y});
+      draft={type:"wall",start:N(an),startNode:an,firstNode:an,cursor:N(an),created:[]}; render(); }
     return; }
 
   if(tool==="curve"){ const sp=snapWorld(w,null);
@@ -2091,6 +2093,25 @@ function onMove(ev){
   if(tool==="wall"||tool==="room"||tool==="dim"){ snapWorld(w,null); }
 }
 
+// Fija un tramo de pared al SOLTAR (clic corto o arrastre, estilo Illustrator).
+// Si el ancla de destino es la PRIMERA de la cadena y ya hay ≥3 tramos, la figura se cierra sola.
+function commitTramoPared(ev){
+  const w=toWorld(ev); const sp=snapWorld(w,null);
+  let b=applyLock(draft.start,sp,ev.shiftKey);
+  if(!sp.node) b=refSnapPoint(draft.start,b);
+  const an=draft.startNode;
+  const bn=sp.node||findOrCreateNode(b);
+  const A=N(an),B=N(bn);
+  if(bn===an||!A||!B||Math.hypot(B.x-A.x,B.y-A.y)<2){ render(); return; } // soltó sobre el ancla actual: nada que fijar
+  const wid=uid("w");
+  doc.walls.push({id:wid,a:an,b:bn,name:"",space:draft.space||"",material:"Ladrillo",piso:doc.pisoActivo});
+  addXP(6); const created=(draft.created||[]).concat(wid);
+  if(bn===draft.firstNode&&created.length>=3){ // cerró el triángulo/cuadro: fin del trazado
+    draft=null; pushHistory(); setTool("select"); setSel(created.map(id=>({type:"wall",id})));
+    avisar("✅ Figura cerrada — "+created.length+" paredes"); render(); return; }
+  draft={type:"wall",start:N(bn),startNode:bn,firstNode:draft.firstNode,cursor:N(bn),space:draft.space,created};
+  pushHistory(); render();
+}
 function onUp(ev){
   if(action){
     if(action.type==="marquee"){
@@ -2106,6 +2127,7 @@ function onUp(ev){
     if(action.moved){ pushHistory(); }
     action=null; hoverSnap=null; smartGuides.length=0; render(); return;
   }
+  if(draft&&(draft.type==="wall")){ commitTramoPared(ev); return; }
   if(draft&&(draft.type==="room")){ commitRoom(); }
   if(draft&&(draft.type==="dim")){ commitDim(); }
   if(draft&&(draft.type==="stair")&&draft.cursor){ commitStair(); }
