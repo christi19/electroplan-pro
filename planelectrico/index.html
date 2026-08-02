@@ -120,8 +120,12 @@
   #sideResize:hover::after,#sideResize.arrastrando::after{background:var(--accent);}
   #sideResize:focus-visible{outline:2px solid var(--accent);outline-offset:-2px;}
   body.mobile #sideResize{display:none;}
-  .tabs{display:flex;border-bottom:1px solid var(--line);}
-  .tabs button{flex:1;border:0;border-radius:0;background:transparent;color:var(--soft);
+  /* flex:1 a secas encogía los botones por debajo de su texto y lo cortaba en el
+     borde del panel. Con 1 0 auto reparten el espacio sobrante pero nunca se
+     achican, y si no caben la barra se desliza. */
+  .tabs{display:flex;border-bottom:1px solid var(--line);overflow-x:auto;scrollbar-width:none;}
+  .tabs::-webkit-scrollbar{display:none;}
+  .tabs button{flex:1 0 auto;white-space:nowrap;padding:0 9px;border:0;border-radius:0;background:transparent;color:var(--soft);
     border-bottom:2px solid transparent;min-height:42px;font-size:12px;}
   .tabs button.on{color:var(--ink);border-bottom-color:var(--accent);background:transparent;}
   .cotbadge{display:inline-block;min-width:17px;padding:1px 5px;margin-left:2px;border-radius:999px;
@@ -527,14 +531,10 @@ const ALTURA_DEF={ toma:30, toma_doble:30, toma_220:60, toma_gfci:110,
   interruptor:120, sw_doble:120, sw_triple:120, sw_3vias:120,
   timbre:210, tv:40, datos:40, aplique:180, panel:160 };
 function alturaOf(e){ return e.alturaCm!=null?e.alturaCm:(ALTURA_DEF[e.type]!=null?ALTURA_DEF[e.type]:0); }
-const DEF_MONEDA={ "$":{punto:25,cable:0.8,tubo:1.2}, "₡":{punto:15000,cable:400,tubo:570} };
 const EL_UNK={icon:String.fromCodePoint(0x2753),name:"Desconocido",price:{"$":0,"₡":0},va:0};
 function elInfo(t){ return ELEMENTS[t]||EL_UNK; }
 // Un elemento "eléctrico" es todo lo que cuenta como punto/carga: ni el tablero ni los muebles decorativos.
 function esElectrico(e){ return !!e && e.type!=="panel" && !elInfo(e.type).decorativo; }
-function priceOf(t){ if(doc&&doc.precios&&doc.precios[t]!=null) return doc.precios[t];
-  return (settings.precios&&settings.precios[t]!=null)?settings.precios[t]:(elInfo(t).price[settings.moneda]!=null?elInfo(t).price[settings.moneda]:0); }
-function mon(n){ return settings.moneda==="₡" ? "₡"+Math.round(n).toLocaleString("es-CR") : "$"+Math.round(n).toLocaleString("en-US"); }
 const MAT_COLOR={Ladrillo:"#b28968",Bloque:"#9aa3ad",Drywall:"#d8d2c4",Concreto:"#8f959c",Panel:"#c9c2ae"};
 function shadeHex(hex,k){ try{ const n=parseInt(hex.replace("#",""),16);
   const r=Math.min(255,Math.round(((n>>16)&255)*k)),g=Math.min(255,Math.round(((n>>8)&255)*k)),b2=Math.min(255,Math.round((n&255)*k));
@@ -549,7 +549,7 @@ const AWG_BY_BREAKER={15:"#14",20:"#12",30:"#10",40:"#8",50:"#6"};
 // Estado del documento
 let doc={ nodes:{}, walls:[], openings:[], elements:[], dims:[], labels:[], circuits:[], routes:[], photos:[], precios:{}, stairs:[], texts:[], materiales:[] };
 let settings={ grid:true, snap:true, lock45:false, gridSize:5, gridMajor:100, wallH:250, wallT:10,
-  moneda:"₡", precioPunto:15000, precioCableM:400, precioTuboM:570, desperdicio:15, voltaje:120, precios:{},
+  moneda:"₡", desperdicio:15, voltaje:120,
   cableXPuntoM:4, // holgura de conexión por punto (m). Estándar del oficio: 3,6–4,5 m por salida
   catalogo:[], catalogoSembrado:false,
   roomShape:"rect", mNombre:"", mTel:"", mProyecto:"", varByCat:{} };
@@ -691,7 +691,7 @@ function cableEntreDosM(a,b){
   const H=settings.wallH||250;
   const cm=(Math.abs(a.x-b.x)+Math.abs(a.y-b.y))+Math.max(0,H-alturaOf(a))+Math.max(0,H-alturaOf(b));
   const cable_m=(cm/CM_PER_M)*(1+(settings.desperdicio||0)/100);
-  return { recta_m, cable_m, costo:cable_m*(settings.precioCableM||0) };
+  return { recta_m, cable_m };
 }
 function snapNum(v){ return settings.snap? Math.round(v/settings.gridSize)*settings.gridSize : v; }
 function el(tag,attrs){ const e=document.createElementNS("http://www.w3.org/2000/svg",tag);
@@ -859,20 +859,9 @@ function reindexIds(){ let mx=0; const scan=o=>{ const m=/(\d+)$/.exec(o||""); i
 // en dólares hacía que ElectroPlan Pro bloqueara todos los importes por moneda
 // distinta, sin que el usuario tuviera forma de arreglarlo desde la app.
 function normalizeSettings(saved){ if(saved&&!saved.moneda){ settings.moneda="₡"; }
-  settings.precios=settings.precios||{}; settings.varByCat=settings.varByCat||{};
+  settings.varByCat=settings.varByCat||{};
   settings.catalogo=settings.catalogo||[];
-  if(settings.precioTuboM==null) settings.precioTuboM=DEF_MONEDA[settings.moneda].tubo;
-  // auto-corrección: magnitudes que no corresponden a la moneda (p. ej. ₡570/m tubo con moneda $)
-  const D=DEF_MONEDA[settings.moneda];
-  if(settings.moneda==="$"){
-    if(settings.precioTuboM>100) settings.precioTuboM=D.tubo;
-    if(settings.precioCableM>100) settings.precioCableM=D.cable;
-    if(settings.precioPunto>2000) settings.precioPunto=D.punto;
-  } else {
-    if(settings.precioTuboM<50) settings.precioTuboM=D.tubo;
-    if(settings.precioCableM<50) settings.precioCableM=D.cable;
-    if(settings.precioPunto<1000) settings.precioPunto=D.punto;
-  } }
+  }
 function doSave(){ try{
     lsSet("planelectrico:cfg",JSON.stringify({settings,xp}));
     let cub=null;
@@ -3622,9 +3611,8 @@ function mostrarTipSimbolo(tile){
   if(window.matchMedia&&!matchMedia("(hover:hover)").matches) return; // solo con mouse real, nunca en táctil
   const t=document.getElementById("tip"); if(!t||!tile) return;
   const k=tile.dataset.sym, i=ELEMENTS[k]; if(!i) return;
-  const precio="";
   const desc=SYMDESC[k]?`<br><span style="color:var(--soft)">${SYMDESC[k]}</span>`:"";
-  t.innerHTML=`<b>${i.icon} ${i.name}</b>${precio}${desc}`;
+  t.innerHTML=`<b>${i.icon} ${i.name}</b>${desc}`;
   t.style.display="block";
   const rb=tile.getBoundingClientRect(), rt=t.getBoundingClientRect();
   let x=rb.left-rt.width-10, y=rb.top+rb.height/2-rt.height/2; // panel a la derecha: el tip va a la IZQUIERDA de la ficha
