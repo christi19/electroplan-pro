@@ -101,6 +101,8 @@
   .wall3d{background:var(--wall3d);border:1px solid rgba(0,0,0,.25);opacity:var(--xop,1);
     backface-visibility:visible;box-shadow:inset 0 0 30px rgba(0,0,0,.12);}
   .ceil{background:rgba(150,170,200,.22);border:1px solid var(--line2);opacity:var(--xop,1);}
+  /* tubería en 3D: se ve por delante de las paredes aunque estén en rayos X */
+  .tubo3d{background:var(--accent);opacity:.9;box-shadow:0 0 4px rgba(0,0,0,.35);}
   .sprite{display:flex;align-items:center;justify-content:center;font-size:22px;
     filter:drop-shadow(0 2px 3px rgba(0,0,0,.4));}
   .cable{position:absolute;left:50%;top:0;width:2px;background:rgba(0,0,0,.35);transform:translateX(-50%);}
@@ -162,6 +164,21 @@
     border-radius:6px;color:var(--ink);padding:3px 4px;text-align:right;font-size:12px;}
   .cartrow .cs{flex:none;min-width:56px;text-align:right;font-variant-numeric:tabular-nums;
     font-family:var(--mono);font-size:12.5px;}
+  /* Materiales propios: nombre en su propia línea (los de ferretería son largos) y los
+     controles debajo, con área táctil de dedo — se usa en el celular, en obra. */
+  .matrow{display:grid;grid-template-columns:26px 1fr auto;gap:4px 8px;align-items:center;
+    padding:8px 0;border-bottom:1px solid var(--line);}
+  .matrow .mi{font-size:18px;text-align:center;}
+  .matrow .mn{min-width:0;font-size:12.5px;font-weight:600;line-height:1.3;overflow-wrap:anywhere;}
+  .matrow .mn small{display:block;color:var(--soft);font-size:10.5px;font-weight:400;}
+  .matrow .mops{grid-column:2/4;display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+  .matrow input,.matrow select{background:var(--panel2);border:1px solid var(--line);
+    border-radius:6px;color:var(--ink);padding:4px 6px;font-size:12.5px;min-height:32px;}
+  .matrow input{width:72px;text-align:right;font-variant-numeric:tabular-nums;}
+  .matrow .mx{color:var(--soft);font-size:12px;}
+  .matrow .ms{margin-left:auto;font-weight:800;font-family:var(--mono);font-size:12.5px;
+    font-variant-numeric:tabular-nums;}
+  .matrow .mdel{min-height:34px;min-width:38px;padding:2px 8px;justify-content:center;}
   #dragGhost{position:fixed;display:none;z-index:200;pointer-events:none;
     flex-direction:column;align-items:center;justify-content:center;gap:2px;
     width:64px;height:64px;border-radius:14px;background:var(--panel);
@@ -529,12 +546,32 @@ const CIRCUIT_COLORS=["#e0644f","#4fa0e0","#4cc38a","#e0b34f","#b07fe0","#4fd0cc
 const BREAKERS=[15,20,30,40,50];
 const AWG_BY_BREAKER={15:"#14",20:"#12",30:"#10",40:"#8",50:"#6"};
 // Estado del documento
-let doc={ nodes:{}, walls:[], openings:[], elements:[], dims:[], labels:[], circuits:[], routes:[], photos:[], precios:{}, stairs:[], texts:[] };
+let doc={ nodes:{}, walls:[], openings:[], elements:[], dims:[], labels:[], circuits:[], routes:[], photos:[], precios:{}, stairs:[], texts:[], materiales:[] };
 let settings={ grid:true, snap:true, lock45:false, gridSize:5, gridMajor:100, wallH:250, wallT:10,
-  moneda:"₡", precioPunto:15000, precioCableM:400, precioTuboM:570, desperdicio:10, voltaje:120, precios:{},
+  moneda:"₡", precioPunto:15000, precioCableM:400, precioTuboM:570, desperdicio:15, voltaje:120, precios:{},
+  cableXPuntoM:4, // holgura de conexión por punto (m). Estándar del oficio: 3,6–4,5 m por salida
+  catalogo:[], catalogoSembrado:false,
   roomShape:"rect", mNombre:"", mTel:"", mProyecto:"", varByCat:{} };
+// Precios de referencia de ferretería CR (EPA / Ecoplus, consultados 2026-07-12 — ver
+// docs/ANEXO-B-FUENTES.md). Son un punto de partida EDITABLE, no precios en vivo.
+const CATALOGO_CR=[
+  {nombre:"Cable THHN #12",            unidad:"m", precio:400,   categoria:"Cables"},
+  {nombre:'Tubo conduit PVC 1/2"',     unidad:"m", precio:567,   categoria:"Conduits"},
+  {nombre:"Caja rectangular",          unidad:"u", precio:560,   categoria:"Accesorios"},
+  {nombre:"Caja octagonal",            unidad:"u", precio:1230,  categoria:"Accesorios"},
+  {nombre:"Breaker 1x20 (QO)",         unidad:"u", precio:5395,  categoria:"Tableros"},
+  {nombre:"Breaker AFCI/GFCI 1x20",    unidad:"u", precio:32950, categoria:"Tableros"}
+];
+function sembrarCatalogo(){
+  if(settings.catalogoSembrado) return;      // una sola vez: si el usuario los borra, no vuelven
+  settings.catalogoSembrado=true;
+  if(!settings.catalogo.length && settings.moneda==="₡")
+    settings.catalogo=CATALOGO_CR.map(m=>Object.assign({id:uid("mat")},m));
+  scheduleSave();
+}
 function normalizeDoc(d){ d.circuits=d.circuits||[]; d.elements=d.elements||[]; d.routes=d.routes||[];
   d.photos=d.photos||[]; d.precios=d.precios||{}; d.stairs=d.stairs||[]; d.nodes=d.nodes||{}; d.walls=d.walls||[]; d.openings=d.openings||[];
+  d.materiales=d.materiales||[];
   d.dims=d.dims||[]; d.labels=d.labels||[]; d.texts=d.texts||[];
   d.elements.forEach(e=>{ if(e.circuitId===undefined)e.circuitId=null; });
   (d.circuits||[]).forEach((c,i)=>{ if(!c.fase) c.fase=(i%2?"B":"A"); });
@@ -556,8 +593,20 @@ function ghostNodes(){ const pid=pisoRef(); if(pid==null||settings.ghostPiso===f
   doc.walls.forEach(w=>{ if((w.piso||"p1")!==pid) return;
     [w.a,w.b].forEach(id=>{ if(!seen.has(id)&&doc.nodes[id]){ seen.add(id); out.push(doc.nodes[id]); } }); });
   return out; }
+// Largo REAL del tubo: el recorrido en planta más las bajadas verticales (r.vertCm),
+// que en la vista de planta no se ven pero se compran y se pagan igual.
 function routeLen(r){ let cm=0; for(let i=1;i<r.pts.length;i++)
-  cm+=Math.hypot(r.pts[i].x-r.pts[i-1].x,r.pts[i].y-r.pts[i-1].y); return cm; }
+  cm+=Math.hypot(r.pts[i].x-r.pts[i-1].x,r.pts[i].y-r.pts[i-1].y);
+  return cm+Math.max(0,+r.vertCm||0); }
+// Recorrido de tubo entre una luz del cielo y el apagador que la enciende: en planta es
+// una L (como se tiende el tubo, no en diagonal) y en alzado baja por la pared.
+function tramoLuzApagador(lz,sw){
+  const H=settings.wallH||250;
+  const hLz=HANGING.includes(lz.type)?H:alturaOf(lz);
+  const hSw=alturaOf(sw);
+  return { pts:[{x:lz.x,y:lz.y},{x:sw.x,y:lz.y},{x:sw.x,y:sw.y}],
+           vertCm:Math.max(0,H-hLz)+Math.max(0,H-hSw) };
+}
 // ---- escaleras: cálculo normativo de escalones ----
 function stairCalc(st){
   const alt=st.alturaTotal||((settings.wallH||250)+20);
@@ -583,16 +632,41 @@ function panelPos(){ const p=doc.elements.find(e=>e.type==="panel"); return p?{x
 // Cable por circuito: si hay TUBERÍA DIBUJADA para el circuito, manda la ruta real;
 // si no, estimación manhattan tablero→punto + 4 m de subida/bajada por punto
 function circuitRoutes(c){ return doc.routes.filter(r=>r.circuitId===c.id); }
+function cableXPuntoCm(){ return Math.max(0,+settings.cableXPuntoM||0)*CM_PER_M; }
 function circuitCableM(c){
+  // La holgura de conexión por punto es la MISMA por los dos caminos: antes, dibujar la
+  // tubería (el trabajo más cuidadoso) daba la mitad de holgura que no dibujarla, y el
+  // descargo prometía 4 m mientras el código ponía 2 → cotizaciones cortas de cable.
+  const perPt=cableXPuntoCm();
   const rs=circuitRoutes(c);
   if(rs.length){ let cm=rs.reduce((s,r)=>s+routeLen(r),0);
-    cm += circuitPoints(c)*200; // 2 m de conexión/bajada por punto
+    cm += circuitPoints(c)*perPt;
     return (cm/CM_PER_M)*(1+settings.desperdicio/100); }
   const p=panelPos(); if(!p) return 0;
   const pe=doc.elements.find(e=>e.type==="panel"); const pfl=pisoIdx(pe&&pe.piso);
   let cm=0; doc.elements.filter(e=>e.circuitId===c.id && esElectrico(e)).forEach(e=>{
-    cm += Math.abs(e.x-p.x)+Math.abs(e.y-p.y) + 400 + 260*Math.abs(pisoIdx(e.piso)-pfl); });
+    cm += Math.abs(e.x-p.x)+Math.abs(e.y-p.y) + perPt + 260*Math.abs(pisoIdx(e.piso)-pfl); });
   return (cm/CM_PER_M)*(1+settings.desperdicio/100); }
+// Pares luz↔apagador del piso activo que todavía no tienen su tubo trazado.
+function paresLuzApagadorPendientes(){
+  const out=[];
+  doc.elements.forEach(sw=>{
+    if(!enPiso(sw)||!SWITCH_TYPES.includes(sw.type)||!sw.controla) return;
+    sw.controla.forEach(lid=>{
+      const lz=doc.elements.find(x=>x.id===lid); if(!lz||!enPiso(lz)) return;
+      if((doc.routes||[]).some(r=>r.auto&&r.from===lid&&r.to===sw.id)) return; // ya trazado
+      out.push({lz,sw}); });
+  });
+  return out;
+}
+// Traza el tubo de cada luz hasta su apagador. Idempotente: repetirlo no duplica.
+function trazarCableLuces(){
+  const pend=paresLuzApagadorPendientes();
+  pend.forEach(({lz,sw})=>{ const t=tramoLuzApagador(lz,sw);
+    doc.routes.push({id:uid("r"),circuitId:sw.circuitId||lz.circuitId||null,
+      pts:t.pts,vertCm:t.vertCm,auto:true,from:lz.id,to:sw.id,piso:doc.pisoActivo}); });
+  return pend.length;
+}
 function addCircuit(name,amps){ const c={id:uid("c"),name:name||("Circuito "+(doc.circuits.length+1)),
   amps:amps||20,color:CIRCUIT_COLORS[doc.circuits.length%CIRCUIT_COLORS.length],
   fase:(doc.circuits.length%2?"B":"A")};
@@ -782,6 +856,7 @@ function reindexIds(){ let mx=0; const scan=o=>{ const m=/(\d+)$/.exec(o||""); i
   ID=mx+1; }
 function normalizeSettings(saved){ if(saved&&!saved.moneda){ settings.moneda="$"; }
   settings.precios=settings.precios||{}; settings.varByCat=settings.varByCat||{};
+  settings.catalogo=settings.catalogo||[];
   if(settings.precioTuboM==null) settings.precioTuboM=DEF_MONEDA[settings.moneda].tubo;
   // auto-corrección: magnitudes que no corresponden a la moneda (p. ej. ₡570/m tubo con moneda $)
   const D=DEF_MONEDA[settings.moneda];
@@ -796,17 +871,22 @@ function normalizeSettings(saved){ if(saved&&!saved.moneda){ settings.moneda="$"
   } }
 function doSave(){ try{
     lsSet("planelectrico:cfg",JSON.stringify({settings,xp}));
+    let cub=null;
     if(projectId){
       localStorage.setItem("planelectrico:proj:"+projectId,JSON.stringify({doc,vb,name:projectName}));
       const ix=loadIndex(); const e=ix.find(p=>p.id===projectId);
       const meta={id:projectId,nombre:projectName,updated:Date.now(),paredes:doc.walls.length,elementos:doc.elements.length};
       if(e)Object.assign(e,meta); else ix.push(meta);
       saveIndex(ix); lsSet("planelectrico:cur",projectId);
+      // Cantidades para ElectroPlan Pro: la app las lee aunque el editor esté cerrado.
+      cub=cubicacionV2(); lsSet("planelectrico:cubic:"+projectId,JSON.stringify(cub));
     }
     setSave("","Guardado");
     // Embebida en ElectroPlan Pro (iframe same-origin): avisar cubicación fresca al padre.
-    if(window.parent!==window){ try{ window.parent.postMessage(
-      {type:"pep:cubicacion",version:1,payload:bridgePayload()},location.origin); }catch(e){} } }
+    if(window.parent!==window){ try{
+      window.parent.postMessage({type:"pep:cubicacion",version:1,payload:bridgePayload()},location.origin);
+      if(cub) window.parent.postMessage({type:"pep:cubicacion2",version:2,payload:cub},location.origin);
+    }catch(e){} } }
   catch(e){ storageOK=false; setSave("err","Solo memoria"); } }
 function openProject(id,fit){ const raw=lsGet("planelectrico:proj:"+id); if(!raw) return false;
   try{ const s=JSON.parse(raw);
@@ -992,9 +1072,12 @@ function render(skipPanel){
     const L=wallLen(w); const mp=wallPointAt(w,L/2); const ang=mp.ang*180/Math.PI;
     if(L*scale>36/mfs()){ // LOD: ocultar medidas de paredes chicas en pantalla
     const t=el("text",{x:mp.x,y:mp.y,fill:"var(--ink)","font-size":13*mfs()/scale,
-      "text-anchor":"middle",dy:-(grosorDe(w)/2+6)/scale,style:"pointer-events:none;font-family:var(--mono)",
+      // el grosor es MUNDO (cm) y el margen PANTALLA (px): cada uno en su unidad.
+      // Antes se dividía todo entre scale y a zoom ≥420% la cota se metía dentro del muro.
+      "text-anchor":"middle",dy:-(grosorDe(w)/2+6/scale),style:"pointer-events:none;font-family:var(--mono)",
       transform:`rotate(${Math.abs(ang)>90?ang+180:ang} ${mp.x} ${mp.y})`});
-    t.textContent=fmt(L)+(w.curve?" ⌒":"")+(w.name?" · "+w.name:""); gWalls.appendChild(t); }
+    t.textContent=fmt(L)+(w.curve?" ⌒":"")+(w.name?" · "+w.name:"");
+    gDim.appendChild(t); } // va en la capa "Etiquetas, cotas y texto": es una anotación, no estructura
     // rombo de curvatura estilo Illustrator (pared seleccionada, herramienta Sel)
     if(isSel&&selection.length===1&&tool==="select"){
       const mx=(a.x+b.x)/2,my=(a.y+b.y)/2;
@@ -1041,9 +1124,12 @@ function render(skipPanel){
   doc.walls.forEach(w=>{ if(enPiso(w)){ nodosPiso.add(w.a); nodosPiso.add(w.b);
     const Lw=wallLen(w); if(Lw>(nodoL[w.a]||0))nodoL[w.a]=Lw; if(Lw>(nodoL[w.b]||0))nodoL[w.b]=Lw; } });
   if(draft&&draft.startNode) nodosPiso.add(draft.startNode);
+  // Mientras se traza una pared, TODAS las anclas del piso se ven: el imán (nearestNode)
+  // apunta a cualquiera de ellas y un imán invisible desconcierta; el LOD rige al terminar.
+  const trazandoPared=!!(draft&&draft.type==="wall");
   if(!vistaCliente) Object.keys(doc.nodes).forEach(id=>{ if(!nodosPiso.has(id))return;
     const esDraft=draft&&(id===draft.startNode||id===draft.firstNode);
-    if(!esDraft&&(nodoL[id]||0)*scale<48) return; // LOD: sin espacio no hay ancla
+    if(!esDraft&&!trazandoPared&&(nodoL[id]||0)*scale<48) return; // LOD: sin espacio no hay ancla
     const n=doc.nodes[id];
     // Ancla estilo Illustrator: radio constante en pantalla (5px) y borde de 2px reales.
     // OJO: con vector-effect el stroke-width se lee en px de PANTALLA — nunca dividirlo
@@ -1084,10 +1170,10 @@ function render(skipPanel){
     const degA=ang*180/Math.PI;
     if(o.width*scale>26/mfs()){
     const mt=el("text",{x:cx,y:cy,"font-size":11*mfs()/scale,fill:o.kind==="door"?"var(--soft)":"var(--blue)",
-      "text-anchor":"middle",dy:(grosorDe(w)/2+13)/scale,
+      "text-anchor":"middle",dy:(grosorDe(w)/2+13/scale), // grosor en cm + margen en px (ver cota de pared)
       style:"pointer-events:none;font-family:var(--mono)",
       transform:`rotate(${Math.abs(degA)>90?degA+180:degA} ${cx} ${cy})`});
-    mt.textContent=fmt(o.width); gOpen.appendChild(mt); }
+    mt.textContent=fmt(o.width); gDim.appendChild(mt); } // capa de etiquetas, igual que la cota de pared
     // zona de agarre central (mover a lo largo de la pared)
     gOpen.appendChild(el("circle",{cx,cy,r:Math.max(12/scale,hw*0.6),fill:"transparent",
       stroke:isSel?"var(--sel)":"transparent","stroke-width":2/scale,
@@ -1455,7 +1541,20 @@ function drawDraft(){
 }
 
 /* ==== detección de habitaciones (m²) — ciclos simples de 3-6 paredes ==== */
+// El DFS de ciclos es el coste dominante del render (medido: 56% del tiempo por
+// pointermove con 123 paredes) y la topología NO cambia entre movimientos del puntero:
+// se cachea por firma (mismo patrón que _cotSig). La firma cubre piso activo, qué paredes
+// hay y dónde están sus nodos — mover un ancla o deshacer la invalida sola.
+let _roomsSig=null, _roomsCache=[];
 function detectRooms(){
+  const sg=[doc.pisoActivo||"p1"];
+  for(const w of doc.walls){ if(!enPiso(w))continue; const a=N(w.a),b=N(w.b); if(!a||!b)continue;
+    sg.push(w.a,w.b,a.x,a.y,b.x,b.y); }
+  const sig=sg.join(",");
+  if(sig===_roomsSig) return _roomsCache;
+  _roomsSig=sig; _roomsCache=detectRoomsCalc(); return _roomsCache;
+}
+function detectRoomsCalc(){
   const adj={}; doc.walls.forEach(w=>{ if(!enPiso(w))return; (adj[w.a]=adj[w.a]||[]).push(w.b); (adj[w.b]=adj[w.b]||[]).push(w.a); });
   const rooms=[]; const seen=new Set();
   // buscar rectángulos/polígonos por DFS corto
@@ -1494,11 +1593,13 @@ function applyLayers(){ ["structure","openings","electrical","labels","fondo"].f
 let tool="select";
 let action=null; // {type,...}
 let fmtClip=null, pintarFormato=false; // cuentagotas / copiar formato
+let matPickerAbierto=false; // selector de material del catálogo, dentro de la cotización
 let smartGuides=[]; // guías inteligentes (magenta) mientras se arrastra
+let paredPressId=null; // pointer que inició el gesto de pared EN el lienzo (el up solo fija tramo si nació aquí)
 let vistaCliente=false; // ✨ plano limpio para enseñar al cliente (oculta cotas, anclas y técnica)
 // Cursor flecha negra estilo Illustrator para "Elegir" (solo escritorio; en táctil no hay cursor)
 const ARROW_CUR="url(\"data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='22'%20height='22'%20viewBox='0%200%2024%2024'%3E%3Cpath%20d='M4%203L4%2019L8.5%2015L11%2021L14%2020L11.5%2014L18%2014Z'%20fill='%23000'%20stroke='%23fff'%20stroke-width='1.3'%20stroke-linejoin='round'/%3E%3C/svg%3E\") 4 3, default";
-function setTool(t){ const bothSel=(tool==="select"||tool==="marquee")&&(t==="select"||t==="marquee"); tool=t; draft=null; pendingPlace=null; if(!bothSel) setSel([]); pintarFormato=false;
+function setTool(t){ const bothSel=(tool==="select"||tool==="marquee")&&(t==="select"||t==="marquee"); tool=t; draft=null; pendingPlace=null; pruneNodes(); if(!bothSel) setSel([]); pintarFormato=false;
   if(CATS[t]&&!settings.dragVisto){ settings.dragVisto=true; scheduleSave();
     avisar("💡 Tip: también podés ARRASTRAR la ficha de la barra directo al plano, como en Duolingo."); }
   document.querySelectorAll(".tool").forEach(b=>b.classList.toggle("on",b.dataset.tool===t));
@@ -1599,6 +1700,7 @@ svg.addEventListener("pointerdown",ev=>{
     // si llega el 2º dedo A MITAD de un arrastre, consolidar el movimiento parcial (punto de undo + autosave)
     if(action&&action.moved) pushHistory();
     action=null; smartGuides.length=0;
+    paredPressId=null; // los ups del pellizco se cortan en captura y jamás llegan a onUp: sin esto el id quedaría rancio
     if(draft&&draft.type!=="wall") draft=null; // el pellizco no debe crear cuartos/cotas a medias
     const pts=[...tPointers.values()];
     pinch={d0:Math.max(1,Math.hypot(pts[0].x-pts[1].x,pts[0].y-pts[1].y)),
@@ -1638,6 +1740,8 @@ function endTouch(ev){
 window.addEventListener("pointerup",endTouch,true);
 window.addEventListener("pointercancel",endTouch,true);
 window.addEventListener("blur",()=>{ tPointers.clear(); pinch=null; wasPinch=false; smartGuides.length=0; });
+// gesto cancelado por el sistema (notificación, gesto del SO): el press de pared muere con él
+window.addEventListener("pointercancel",ev=>{ if(ev.pointerId===paredPressId) paredPressId=null; });
 // --- Zoom nativo (pellizco) bloqueado en TODA la app ---
 // iPad ignora user-scalable=no en pestañas: el pinch achicaba la interfaz completa y desacomodaba
 // los módulos. Ahora cada zona interpreta su propio pellizco (lienzo/3D → zoom del plano;
@@ -1901,6 +2005,8 @@ function onDown(ev){
   if(tool==="wall"){
     // El tramo se fija al SOLTAR (commitTramoPared en onUp): así funciona el clic-clic
     // de siempre Y el arrastre estilo Illustrator (apretar, estirar, soltar = ancla).
+    if(ev.button!==0) return; // solo botón izquierdo/tap dibuja
+    paredPressId=ev.pointerId; // el gesto nació en el lienzo: este down legitima el próximo up
     if(!draft){ const sp=snapWorld(w,null); const an=sp.node||findOrCreateNode({x:sp.x,y:sp.y});
       draft={type:"wall",start:N(an),startNode:an,firstNode:an,cursor:N(an),created:[]}; render(); }
     return; }
@@ -2084,11 +2190,18 @@ function onMove(ev){
     if(draft.type==="route"){ draft.cursor=snapRoutePoint(w); render(); return; }
     if(draft.type==="opening"){ const wl=doc.walls.find(x=>x.id===draft.wallId);
       if(wl){ const pr=projectOnWall(wl,w); draft.d1=pr.t*wallLen(wl); } render(); return; }
+    if(draft.type==="wall"){
+      // Paridad con commitTramoPared: mismo imán (sin excluir el ancla propia) y misma
+      // precedencia — el nodo imantado GANA sobre 45°/ref. El preview muestra lo que se creará;
+      // sobre el ancla propia la goma colapsa a 0 (= el commit no creará nada, guard bn===an).
+      const spw=snapWorld(w,null);
+      let bb;
+      if(spw.node){ bb={x:spw.x,y:spw.y}; }
+      else { bb=applyLock(draft.start,spw,ev.shiftKey); bb=refSnapPoint(draft.start,bb); }
+      draft.refMatch=!!bb.refMatch; draft.cursor=bb;
+      render(true); return; } // preview liviano: sin reconstruir panel/ctxbar en cada move (paridad con los drags)
     const sp=snapWorld(w, draft.startNode);
-    if(draft.type==="wall"){ let bb=applyLock(draft.start,sp,ev.shiftKey);
-      if(!sp.node) bb=refSnapPoint(draft.start,bb);
-      draft.refMatch=!!bb.refMatch; draft.cursor=bb; }
-    else draft.cursor={x:sp.x,y:sp.y}; render(); return; }
+    draft.cursor={x:sp.x,y:sp.y}; render(); return; }
   // hover snap feedback
   if(tool==="wall"||tool==="room"||tool==="dim"){ snapWorld(w,null); }
 }
@@ -2127,7 +2240,11 @@ function onUp(ev){
     if(action.moved){ pushHistory(); }
     action=null; hoverSnap=null; smartGuides.length=0; render(); return;
   }
-  if(draft&&(draft.type==="wall")){ commitTramoPared(ev); return; }
+  if(draft&&(draft.type==="wall")){
+    // Solo fija el tramo si el gesto nació en el lienzo (onDown lo armó): un pointerup
+    // sobre botones/paneles de la UI ya no crea paredes fantasma hacia esa posición.
+    if(paredPressId!==null&&ev.pointerId===paredPressId){ paredPressId=null; commitTramoPared(ev); }
+    return; }
   if(draft&&(draft.type==="room")){ commitRoom(); }
   if(draft&&(draft.type==="dim")){ commitDim(); }
   if(draft&&(draft.type==="stair")&&draft.cursor){ commitStair(); }
@@ -2632,14 +2749,23 @@ function renderCircuits(p){
   html+=`<button id="verUni" class="ghost" style="width:100%;justify-content:center;margin-top:6px">📜 Ver diagrama unifilar</button>`;
   html+=`<button id="verCarg" class="ghost" style="width:100%;justify-content:center;margin-top:6px">📋 Cuadro de cargas</button>`;
   html+=`<button id="numPts" class="ghost" style="width:100%;justify-content:center;margin-top:6px">🔢 Numerar puntos (C1-1, C1-2…)</button>`;
+  const pend=paresLuzApagadorPendientes().length;
+  html+=`<div class="kdt" style="margin:14px 0 6px">🔌 Cable de las luces</div>
+    <p class="muted" style="margin:0 0 6px">Traza el tubo de cada luz hasta el apagador que la enciende: en escuadra por el cielo y bajando por la pared, como se tiende de verdad.</p>
+    <button id="autoCable" class="ghost" style="width:100%;justify-content:center;min-height:34px"${pend?"":" disabled"}>🔌 Trazar cable de luz a apagador${pend?" ("+pend+")":" — nada pendiente"}</button>`;
   const avisos=calcAvisos();
   html+=`<div class="kdt" style="margin:14px 0 6px">${avisos.length?"⚠ Avisos ("+avisos.length+")":"✔ Sin avisos"}</div>`;
   if(avisos.length) html+=`<div style="display:flex;flex-direction:column;gap:6px">`+avisos.map(a=>`<div style="font-size:12px;line-height:1.45;padding:7px 9px;border-left:3px solid var(--danger);background:var(--panel2);border-radius:0 6px 6px 0;color:var(--soft)">${a}</div>`).join("")+`</div>`;
   // sin asignar
   const libres=doc.elements.filter(e=>esElectrico(e)&&!e.circuitId);
   if(libres.length) html+=`<p class="muted" style="margin-top:12px">⚠ <b>${libres.length}</b> punto(s) sin circuito. <button id="asigTodo" class="ghost" style="min-height:26px;padding:2px 8px">Asignar al 1º</button></p>`;
-  html+=`<div class="disclaimer">Cargas de referencia: toma 180 VA · lámpara 100 VA (NEC). La verificación del 80% es una guía visual — <b>no sustituye el cálculo del profesional responsable</b>. El cable es ESTIMACIÓN (en escuadra hasta el tablero, como se tiende el tubo, + 4 m por punto + ${settings.desperdicio}% desperdicio).</div>`;
+  html+=`<div class="disclaimer">Cargas de referencia: toma 180 VA · lámpara 100 VA (NEC). La verificación del 80% es una guía visual — <b>no sustituye el cálculo del profesional responsable</b>. El cable es ESTIMACIÓN (en escuadra hasta el tablero, como se tiende el tubo, + ${settings.cableXPuntoM} m por punto + ${settings.desperdicio}% desperdicio).</div>`;
   p.innerHTML=html;
+  const ac=document.getElementById("autoCable");
+  if(ac) ac.onclick=()=>{ const n=trazarCableLuces();
+    if(!n){ avisar("No hay luces vinculadas a un apagador sin tubo. Usá 🔗 en el apagador para decirle qué luz enciende."); return; }
+    pushHistory(); render();
+    avisar("🔌 "+n+" tramo"+(n===1?"":"s")+" de tubo trazado"+(n===1?"":"s")+" — deshacé con Ctrl+Z si no te sirve."); };
   document.getElementById("addCir").onclick=()=>{ addCircuit(); pushHistory(); renderPanel(); };
   document.getElementById("verUni").onclick=showUnifilar;
   document.getElementById("verCarg").onclick=showCargas;
@@ -2691,6 +2817,15 @@ function renderLayers(p){ const L=[["structure","🧱 Estructura (paredes)"],["o
 }
 
 // totales de cotización — única fuente de verdad (la usan renderCot, badge y toast)
+// Magnitudes del plano a las que un material puede atar su cantidad.
+function magnitudDe(atado,T){
+  if(atado==="cable_m") return T.cableTotal||0;
+  if(atado==="tubo_m")  return T.tubM||0;
+  if(atado==="puntos")  return T.puntos||0;
+  if(atado&&atado.indexOf("tipo:")===0) return (T.elemCount||{})[atado.slice(5)]||0;
+  return 0;
+}
+function cantMaterial(m,T){ return m&&m.atado?magnitudDe(m.atado,T):Math.max(0,+((m||{}).cant)||0); }
 function cotTotales(){
   const elemCount={}; doc.elements.forEach(e=>{ if(!elInfo(e.type).decorativo) elemCount[e.type]=(elemCount[e.type]||0)+1; });
   const elemCost=doc.elements.reduce((s,e)=>s+priceOf(e.type),0);
@@ -2700,14 +2835,24 @@ function cotTotales(){
   const manoObra=puntos*settings.precioPunto;
   const tubM=doc.routes.reduce((s,r)=>s+routeLen(r)/CM_PER_M,0);
   const tubCost=tubM*(settings.precioTuboM||0);
+  // Materiales propios del electricista. Si ata uno a los metros de cable o de tubo,
+  // ese material REEMPLAZA la línea automática: si no, el cable se cobraría dos veces.
+  const mats=doc.materiales||[];
+  const TM={cableTotal,tubM,puntos,elemCount};
+  const materialesCost=mats.reduce((s,m)=>s+cantMaterial(m,TM)*(Math.max(0,+m.precio)||0),0);
+  const cableReemplazado=mats.some(m=>m.atado==="cable_m");
+  const tuboReemplazado=mats.some(m=>m.atado==="tubo_m");
   return {elemCount,elemCost,cableTotal,cableCost,puntos,manoObra,tubM,tubCost,
-    items:doc.elements.filter(e=>!elInfo(e.type).decorativo).length,total:elemCost+cableCost+manoObra+tubCost};
+    materialesCost,cableReemplazado,tuboReemplazado,
+    items:doc.elements.filter(e=>!elInfo(e.type).decorativo).length,
+    total:elemCost+(cableReemplazado?0:cableCost)+manoObra+(tuboReemplazado?0:tubCost)+materialesCost};
 }
 
 function renderCot(p){
   const M=settings.moneda;
   const T=cotTotales();
-  const {elemCount,elemCost,cableTotal,cableCost,puntos,manoObra,tubM,tubCost,total}=T;
+  const {elemCount,elemCost,cableTotal,cableCost,puntos,manoObra,tubM,tubCost,total,
+    materialesCost,cableReemplazado,tuboReemplazado}=T;
   const cirRows=doc.circuits.map(c=>{ const m=circuitCableM(c);
     return `<tr><td><span style="color:${c.color}">⬤</span> ${c.name} (${c.amps}A · ${AWG_BY_BREAKER[c.amps]||"?"})</td><td class="n">${circuitPoints(c)} pts</td><td class="n">${m.toFixed(1)} m</td></tr>`; }).join("");
   const erows=Object.keys(elemCount).map(k=>{ const i=elInfo(k); const sinP=priceOf(k)===0;
@@ -2724,9 +2869,59 @@ function renderCot(p){
   const usados=Object.keys(elemCount);
   const catRows=usados.map(k=>`<tr><td>${elInfo(k).icon} ${elInfo(k).name}</td>
     <td class="n"><input data-price="${k}" type="number" value="${priceOf(k)}" style="width:92px;background:var(--panel2);border:1px solid var(--line);border-radius:6px;color:var(--ink);padding:3px 6px;text-align:right"></td></tr>`).join("");
+  const TM={cableTotal,tubM,puntos,elemCount};
+  // De dónde sale la cantidad: a mano, o atada a una magnitud que el plano ya calcula.
+  const ATADURAS=[["","a mano"],["cable_m","metros de cable"],["tubo_m","metros de tubo"],
+    ["puntos","cantidad de puntos"]].concat(
+    Object.keys(elemCount).map(t=>["tipo:"+t,"cantidad de "+elInfo(t).name]));
+  const matRows=(doc.materiales||[]).map(m=>{
+    const q=cantMaterial(m,TM); const sub=q*(Math.max(0,+m.precio)||0);
+    const nota=m.atado
+      ? "🔗 del plano"+(m.atado==="cable_m"?" · incluye "+(settings.desperdicio||0)+"% desperdicio":"")
+      : (m.unidad==="m"?"por metro":"por unidad");
+    // el renglón guarda su COPIA del precio; si el catálogo cambió, se ofrece traerlo (nunca solo)
+    const cat=(settings.catalogo||[]).find(c=>c.id===m.catId);
+    const desfasado=cat&&(Math.max(0,+cat.precio)||0)!==(Math.max(0,+m.precio)||0);
+    return `<div class="matrow">
+      <span class="mi">${m.atado?"🔗":"🧰"}</span>
+      <div class="mn">${m.nombre}<small>${nota}</small></div>
+      <button data-mdel="${m.id}" class="ghost mdel" title="Quitar este material" aria-label="Quitar ${m.nombre}">🗑</button>
+      <div class="mops">
+        ${m.atado
+          ? `<span class="mx" title="Calculado del plano">${(Math.round(q*10)/10)} ${m.unidad}</span>`
+          : `<input data-mcant="${m.id}" type="number" min="0" step="0.1" value="${m.cant}" title="Cantidad (${m.unidad})" aria-label="Cantidad de ${m.nombre}">`}
+        <span class="mx">×</span>
+        <input data-mprecio="${m.id}" type="number" step="0.01" min="0" value="${m.precio}" title="Precio unitario (${M})" aria-label="Precio de ${m.nombre}">
+        <b class="ms">${mon(sub)}</b>
+        ${desfasado?`<button data-msync="${m.id}" class="ghost mdel" title="Tu catálogo dice ${mon(cat.precio)} — traer ese precio" aria-label="Traer el precio del catálogo para ${m.nombre}">↻</button>`:""}
+      </div>
+      <select data-matado="${m.id}" title="De dónde sale la cantidad" aria-label="Origen de la cantidad de ${m.nombre}" style="grid-column:2/4;max-width:100%">
+        ${ATADURAS.map(([v,t])=>`<option value="${v}"${(m.atado||"")===v?" selected":""}>${t}</option>`).join("")}
+      </select>
+    </div>`; }).join("");
+  const CATS_MAT=["Conduits","Cables","Dispositivos","Tableros","Accesorios"];
+  const catLista=(settings.catalogo||[]).map(c=>
+    `<button data-mcat="${c.id}" class="ghost" style="width:100%;justify-content:space-between;margin-bottom:4px;min-height:34px">
+       <span>${c.nombre}</span><b>${mon(c.precio)}/${c.unidad}</b></button>`).join("");
+  const picker=matPickerAbierto?`<div style="border:1px solid var(--line);border-radius:8px;padding:10px;margin-top:8px;background:var(--panel2)">
+      <input id="matBuscar" type="search" placeholder="Buscar en mi catálogo…" style="width:100%;margin-bottom:8px">
+      <div id="matLista">${catLista||'<div class="muted">Tu catálogo está vacío.</div>'}</div>
+      <div class="kdt sec" style="margin:10px 0 6px">＋ Crear material nuevo</div>
+      <input id="matNuevoNombre" placeholder="Nombre (ej. Tubo EMT 1/2&quot;)" style="width:100%;margin-bottom:6px">
+      <div class="row" style="margin-bottom:6px">
+        <div class="field" style="margin:0"><label>Precio (${M})</label><input id="matNuevoPrecio" type="number" min="0" step="0.01" value="0"></div>
+        <div class="field" style="margin:0"><label>Unidad</label><select id="matNuevaUnidad"><option value="u">unidad</option><option value="m">metro</option></select></div>
+      </div>
+      <div class="field" style="margin:0 0 8px"><label>Categoría</label><select id="matNuevaCat">${CATS_MAT.map(c=>`<option value="${c}">${c}</option>`).join("")}</select></div>
+      <button id="matCrear" style="width:100%;justify-content:center;min-height:34px">＋ Crear y agregar</button>
+    </div>`:"";
   p.innerHTML=`<div class="cottotal"><span class="kdt">🧾 ${T.items} producto${T.items===1?"":"s"} · ${puntos} pts</span><b>${mon(total)}</b></div>
     <div class="kdt sec" style="margin:2px 0 8px">🧾 Productos del plano</div>
     <div>${erows||'<div class="muted" style="padding:10px 0">Carrito vacío — tocá 🔌 💡 🎚️ en la barra y tocá el plano para añadir productos.</div>'}</div>
+    <div class="kdt sec sep" style="margin:14px 0 8px">🧰 Materiales</div>
+    <div>${matRows||'<div class="muted" style="padding:8px 0">Sin materiales propios todavía.</div>'}</div>
+    <button id="matAdd" class="ghost" style="width:100%;justify-content:center;margin-top:6px;min-height:34px">＋ Agregar material</button>
+    ${picker}
     <div class="kdt sec sep" style="margin:14px 0 8px">🔧 Servicios estimados — cable por circuito</div>
     <table class="cot"><tbody>${cirRows||'<tr><td colspan="3" class="muted">Sin circuitos — créalos en ⚡ Circuitos</td></tr>'}
     ${cirRows?`<tr><td><b>Cable total</b></td><td></td><td class="n"><b>${cableTotal.toFixed(1)} m · ${mon(cableCost)}</b></td></tr>`:""}</tbody></table>
@@ -2734,8 +2929,9 @@ function renderCot(p){
     ${avisosHTML}
     <table class="cot"><tbody>
       <tr><td>Materiales (dispositivos)</td><td></td><td class="n">${mon(elemCost)}</td></tr>
-      <tr><td>Cable (${cableTotal.toFixed(0)} m est.)</td><td></td><td class="n">${mon(cableCost)}</td></tr>
-      ${tubM>0?`<tr><td>Tubería dibujada (${tubM.toFixed(1)} m ≈ ${Math.ceil(tubM/3)} tubos de 3 m)</td><td></td><td class="n">${mon(tubCost)}</td></tr>`:""}
+      <tr${cableReemplazado?' style="opacity:.55;text-decoration:line-through"':''}><td>Cable (${cableTotal.toFixed(0)} m est.)${cableReemplazado?' <small style="text-decoration:none;opacity:.9">— reemplazado por tus materiales</small>':''}</td><td></td><td class="n">${mon(cableCost)}</td></tr>
+      ${tubM>0?`<tr${tuboReemplazado?' style="opacity:.55;text-decoration:line-through"':''}><td>Tubería dibujada (${tubM.toFixed(1)} m ≈ ${Math.ceil(tubM/3)} tubos de 3 m)${tuboReemplazado?' <small style="text-decoration:none;opacity:.9">— reemplazada por tus materiales</small>':''}</td><td></td><td class="n">${mon(tubCost)}</td></tr>`:""}
+      ${materialesCost>0?`<tr><td>Materiales propios</td><td></td><td class="n">${mon(materialesCost)}</td></tr>`:""}
       <tr><td>Mano de obra (${puntos} puntos × ${mon(settings.precioPunto)})</td><td></td><td class="n">${mon(manoObra)}</td></tr>
     </tbody><tfoot><tr><td>TOTAL</td><td></td><td class="n">${mon(total)}</td></tr></tfoot></table>
     <div class="kdt sec sep" style="margin:14px 0 8px">⚙ Parámetros</div>
@@ -2748,12 +2944,15 @@ function renderCot(p){
       <div class="field" style="margin:0"><label>% desperd.</label><input id="c_dp" type="number" value="${settings.desperdicio}"></div>
       <div class="field" style="margin:0"><label>${M}/m tubo</label><input id="c_pt" type="number" step="0.1" value="${settings.precioTuboM}"></div>
     </div>
+    <div class="row" style="margin-bottom:10px">
+      <div class="field" style="margin:0"><label>m de cable por punto</label><input id="c_cxp" type="number" min="0" step="0.5" value="${settings.cableXPuntoM}" title="Holgura de conexión en cada salida (caja, empalme, bajada). El oficio usa 3,6–4,5 m"></div>
+    </div>
     <details style="margin-top:12px"><summary style="cursor:pointer;color:var(--accent);font-weight:700;font-size:12.5px;padding:9px;border:1px dashed var(--accent);border-radius:8px;text-align:center;list-style:none">✎ CATÁLOGO DE PRECIOS DE ESTE PROYECTO (${M})</summary>
       <table class="cot" style="margin-top:8px"><tbody>${catRows||`<tr><td class="muted">Coloca elementos en el plano y aparecerán aquí para ponerles precio.</td></tr>`}</tbody></table>
       <button id="catReset" class="ghost" style="width:100%;justify-content:center;margin-top:6px;min-height:30px">↺ Restaurar precios de fábrica</button>
     </details>
     <button id="cotExp" style="width:100%;justify-content:center;margin-top:14px">⇩ Exportar cotización (CSV)</button>
-    <div class="disclaimer">Toda cantidad es <b>ESTIMACIÓN revisable</b>: ajusta tu catálogo de precios antes de enviarla al cliente. Los precios de fábrica en ₡ son referencias aproximadas de ferretería CR (jul-2026) — edítalos con TUS precios. El cable se estima en escuadra hasta el tablero (horizontal + vertical, como se tiende el tubo) + 4 m por punto + desperdicio.</div>`;
+    <div class="disclaimer">Toda cantidad es <b>ESTIMACIÓN revisable</b>: ajusta tu catálogo de precios antes de enviarla al cliente. Los precios de fábrica en ₡ son referencias aproximadas de ferretería CR (jul-2026) — edítalos con TUS precios. El cable se estima en escuadra hasta el tablero (horizontal + vertical, como se tiende el tubo) + ${settings.cableXPuntoM} m por punto + ${settings.desperdicio}% desperdicio. Si dibujás la tubería, se usa su recorrido real en vez de la escuadra.</div>`;
   const gc=p.querySelector("[data-gocir]"); if(gc) gc.onclick=()=>abrirTab("cir");
   document.getElementById("c_mon").onchange=e=>{ const nm=e.target.value;
     if(nm!==settings.moneda){ settings.moneda=nm; settings.precios={};
@@ -2762,10 +2961,56 @@ function renderCot(p){
   const upd=()=>{ settings.precioPunto=+document.getElementById("c_pp").value||0;
     settings.precioCableM=+document.getElementById("c_pc").value||0;
     settings.desperdicio=+document.getElementById("c_dp").value||0;
-    settings.precioTuboM=+document.getElementById("c_pt").value||0; scheduleSave(); renderPanel(); };
-  ["c_pp","c_pc","c_dp","c_pt"].forEach(id=>document.getElementById(id).onchange=upd);
+    settings.precioTuboM=+document.getElementById("c_pt").value||0;
+    settings.cableXPuntoM=Math.max(0,+document.getElementById("c_cxp").value||0);
+    scheduleSave(); renderPanel(); };
+  ["c_pp","c_pc","c_dp","c_pt","c_cxp"].forEach(id=>document.getElementById(id).onchange=upd);
   p.querySelectorAll("input[data-price]").forEach(inp=>inp.onchange=()=>{
     doc.precios[inp.dataset.price]=+inp.value||0; scheduleSave(); renderPanel(); });
+  // materiales propios: mismo trato que los precios (guardan y repintan; no entran al undo)
+  p.querySelectorAll("[data-mcant]").forEach(i=>i.onchange=()=>{
+    const m=(doc.materiales||[]).find(x=>x.id===i.dataset.mcant);
+    if(m){ m.cant=Math.max(0,+i.value||0); scheduleSave(); renderPanel(); } });
+  p.querySelectorAll("[data-mprecio]").forEach(i=>i.onchange=()=>{
+    const m=(doc.materiales||[]).find(x=>x.id===i.dataset.mprecio);
+    if(m){ m.precio=Math.max(0,+i.value||0); scheduleSave(); renderPanel(); } });
+  p.querySelectorAll("[data-msync]").forEach(b=>b.onclick=()=>{
+    const m=(doc.materiales||[]).find(x=>x.id===b.dataset.msync); if(!m) return;
+    const c=(settings.catalogo||[]).find(x=>x.id===m.catId); if(!c) return;
+    m.precio=Math.max(0,+c.precio)||0; scheduleSave(); renderPanel();
+    avisar("↻ Precio actualizado desde tu catálogo."); });
+  p.querySelectorAll("[data-matado]").forEach(s=>s.onchange=()=>{
+    const m=(doc.materiales||[]).find(x=>x.id===s.dataset.matado); if(!m) return;
+    if(!s.value){ m.cant=cantMaterial(m,TM); m.atado=null; }  // al desatar conserva lo calculado
+    else m.atado=s.value;
+    scheduleSave(); renderPanel(); });
+  const btnAdd=document.getElementById("matAdd");
+  if(btnAdd) btnAdd.onclick=()=>{ matPickerAbierto=!matPickerAbierto; renderPanel(); };
+  const agregarDesdeCat=c=>{ doc.materiales=doc.materiales||[];
+    doc.materiales.push({id:uid("dm"),catId:c.id,nombre:c.nombre,unidad:c.unidad,
+      precio:c.precio,cant:1,atado:null,categoria:c.categoria||"Accesorios"});
+    matPickerAbierto=false; scheduleSave(); renderPanel(); };
+  p.querySelectorAll("[data-mcat]").forEach(b=>b.onclick=()=>{
+    const c=(settings.catalogo||[]).find(x=>x.id===b.dataset.mcat); if(c) agregarDesdeCat(c); });
+  const bus=document.getElementById("matBuscar");
+  if(bus) bus.oninput=()=>{ const q=bus.value.toLowerCase();
+    p.querySelectorAll("[data-mcat]").forEach(b=>{
+      const c=(settings.catalogo||[]).find(x=>x.id===b.dataset.mcat);
+      b.style.display=(!q||(c&&c.nombre.toLowerCase().includes(q)))?"":"none"; }); };
+  const crear=document.getElementById("matCrear");
+  if(crear) crear.onclick=()=>{
+    const nombre=(document.getElementById("matNuevoNombre").value||"").trim();
+    if(!nombre){ avisar("Escribí el nombre del material."); return; }
+    const c={id:uid("mat"),nombre:nombre,
+      unidad:document.getElementById("matNuevaUnidad").value,
+      precio:Math.max(0,+document.getElementById("matNuevoPrecio").value||0),
+      categoria:document.getElementById("matNuevaCat").value};
+    settings.catalogo=settings.catalogo||[]; settings.catalogo.push(c);
+    agregarDesdeCat(c); };
+  p.querySelectorAll("[data-mdel]").forEach(b=>b.onclick=()=>{
+    const m=(doc.materiales||[]).find(x=>x.id===b.dataset.mdel); if(!m) return;
+    if(!confirm("¿Quitar \""+m.nombre+"\" de esta cotización?")) return;
+    doc.materiales=doc.materiales.filter(x=>x.id!==m.id); scheduleSave(); renderPanel(); });
   document.getElementById("catReset").onclick=()=>{ doc.precios={}; scheduleSave(); renderPanel(); };
   document.getElementById("cotExp").onclick=()=>{ let csv="Concepto,Cantidad,Costo ("+M+")\n";
     Object.keys(elemCount).forEach(k=>csv+=`${elInfo(k).name},${elemCount[k]}u,${Math.round(elemCount[k]*priceOf(k))}\n`);
@@ -2775,12 +3020,18 @@ function renderCot(p){
     csv+=`TOTAL,,${Math.round(total)}\n`; download("cotizacion-planelectrico.csv","text/csv",csv); };
 }
 
+// corre en CADA render (o sea en cada pointermove): sin el guard de firma reescribía el
+// innerHTML y re-enlazaba todos los handlers por movimiento, puro desperdicio
+let _flSig="";
 function renderFloorbar(){ const fb=document.getElementById("floorbar"); if(!fb) return;
   const ps=doc.pisos||[];
-  if(ps.length<=1){ fb.innerHTML='<button data-addfl="1" title="Agregar otra planta (piso)">🏢 ＋ Planta</button>'; }
-  else fb.innerHTML=ps.map(p=>`<button data-fl="${p.id}" class="${p.id===doc.pisoActivo?"on":""}" title="Doble clic: renombrar">${p.nombre}</button>`).join("")+
-    `<button data-ghost="1" class="${settings.ghostPiso!==false?"on":""}" title="Ver el piso de abajo como calco (con imán a sus paredes)">👻</button>`+
-    '<button data-addfl="1" title="Agregar planta">＋</button>';
+  const html=(ps.length<=1)
+    ? '<button data-addfl="1" title="Agregar otra planta (piso)">🏢 ＋ Planta</button>'
+    : ps.map(p=>`<button data-fl="${p.id}" class="${p.id===doc.pisoActivo?"on":""}" title="Doble clic: renombrar">${p.nombre}</button>`).join("")+
+      `<button data-ghost="1" class="${settings.ghostPiso!==false?"on":""}" title="Ver el piso de abajo como calco (con imán a sus paredes)">👻</button>`+
+      '<button data-addfl="1" title="Agregar planta">＋</button>';
+  if(html===_flSig) return; // nada cambió: los botones y sus handlers siguen vivos
+  _flSig=html; fb.innerHTML=html;
   fb.querySelectorAll("[data-fl]").forEach(b=>{
     b.onclick=()=>{ if(doc.pisoActivo!==b.dataset.fl){ doc.pisoActivo=b.dataset.fl; setSel([]); draft=null; scheduleSave(); fitView(); } };
     b.ondblclick=async ()=>{ const p=ps.find(x=>x.id===b.dataset.fl); if(!p)return;
@@ -2793,9 +3044,12 @@ function renderFloorbar(){ const fb=document.getElementById("floorbar"); if(!fb)
     doc.pisos.push(np); doc.pisoActivo=np.id; setSel([]); scheduleSave(); fitView();
     avisar("🏢 "+nombre+" creada — estás en ella (lienzo vacío). Doble clic en su botón para renombrarla."); };
 }
+let _statusSig="";
 function renderStatus(){ const s=document.getElementById("status");
-  s.innerHTML=`<span>zoom ${(100/vb.w*1400|0)/1}%</span><span>paredes ${doc.walls.length}</span><span>ref 1ª: ${doc.walls.length?fmt(wallLen(doc.walls[0])):"—"}</span>${(doc.pisos&&doc.pisos.length>1)?`<span>🏢 ${((doc.pisos.find(p=>p.id===doc.pisoActivo)||{}).nombre)||""}</span>`:""}
-  <span>escala 1px≈${(1/scale).toFixed(1)}cm</span><span>${storageOK?"autosave ✓":"memoria"}</span>`; }
+  const html=`<span>zoom ${(100/vb.w*1400|0)/1}%</span><span>paredes ${doc.walls.length}</span><span>ref 1ª: ${doc.walls.length?fmt(wallLen(doc.walls[0])):"—"}</span>${(doc.pisos&&doc.pisos.length>1)?`<span>🏢 ${((doc.pisos.find(p=>p.id===doc.pisoActivo)||{}).nombre)||""}</span>`:""}
+  <span>escala 1px≈${(1/scale).toFixed(1)}cm</span><span>${storageOK?"autosave ✓":"memoria"}</span>`;
+  if(html===_statusSig) return; // mismo texto: no rehacer el DOM en cada movimiento
+  _statusSig=html; s.innerHTML=html; }
 
 // badge del carrito en la pestaña Cotización — se actualiza en cada render (con guard de firma)
 let _cotSig="";
@@ -2921,6 +3175,27 @@ function build3d(){
     if(hang){ const cable=document.createElement("div"); cable.style.cssText="position:absolute;left:50%;top:-40px;width:2px;height:40px;background:rgba(0,0,0,.4);transform:translateX(-50%)";
       sp.appendChild(cable); }
     wrap.appendChild(sp); scene.appendChild(wrap); });
+  // tubería: la corrida por el cielo y la bajada por la pared hasta el apagador
+  doc.routes.forEach(r=>{ if(!r.pts||r.pts.length<2) return;
+    const zo=zDe(r.piso);
+    const seg=(x,y,len,angDeg,alto,z)=>{ if(len<0.5) return;
+      const d=document.createElement("div"); d.className="p3 tubo3d";
+      d.style.width=len+"px"; d.style.height=(alto||2)+"px";
+      d.style.left="0"; d.style.top="0"; d.style.transformOrigin="0 0";
+      d.style.transform="translate3d("+(x-cx)+"px,"+(y-cy)+"px,"+z+"px) rotateZ("+angDeg+"deg) rotateX(90deg)";
+      scene.appendChild(d); };
+    for(let i=1;i<r.pts.length;i++){ const p0=r.pts[i-1],p1=r.pts[i];
+      const L=Math.hypot(p1.x-p0.x,p1.y-p0.y); if(L<0.5) continue;
+      seg(p0.x,p0.y,L,Math.atan2(p1.y-p0.y,p1.x-p0.x)*180/Math.PI,2,zo+H); } // corrida al ras del cielo
+    if(r.vertCm>0){ const fin=r.pts[r.pts.length-1];
+      const d=document.createElement("div"); d.className="p3 tubo3d";
+      d.style.width="2px"; d.style.height=r.vertCm+"px";
+      d.style.left="0"; d.style.top="0"; d.style.transformOrigin="0 0";
+      // con rotateX(90deg) el alto crece hacia ARRIBA: se ancla a la altura del aparato
+      // (cielo − bajada) para que suba hasta el cielo, en vez de salirse por el techo
+      d.style.transform="translate3d("+(fin.x-cx)+"px,"+(fin.y-cy)+"px,"+(zo+Math.max(0,H-r.vertCm))+"px) rotateX(90deg)";
+      scene.appendChild(d); }
+  });
 }
 // interacción 3D
 let o3=null;
@@ -3546,6 +3821,35 @@ async function exportJSON(){ setSave("busy","Empacando…");
   setSave("","Guardado"); }
 // Puente hacia ElectroPlan Pro (app React): solo cubicación, sin plano.
 // La mano de obra viaja aparte (labor) — nunca como material, para no duplicar IVA en la otra app.
+// Cubicación v2 — SOLO cantidades. Los precios viven en ElectroPlan Pro.
+// Se escribe en localStorage en cada doSave() para que la app pueda leerla
+// sin tener el editor abierto.
+function cubicacionV2(){
+  const T=cotTotales();
+  const arts=[];
+  Object.keys(T.elemCount).forEach(t=>{
+    arts.push({ key:t, name:elInfo(t).name,
+      category: t==="panel"?"Tableros":"Dispositivos",
+      quantity:T.elemCount[t], unit:"c/u" });
+  });
+  if(T.cableTotal>0 && !T.cableReemplazado) arts.push({ key:"cable",
+    name:"Cable estimado por circuitos", category:"Cables",
+    quantity:+T.cableTotal.toFixed(1), unit:"m" });
+  if(T.tubM>0 && !T.tuboReemplazado) arts.push({ key:"tubo",
+    name:"Tubería conduit dibujada", category:"Conduits",
+    quantity:+T.tubM.toFixed(1), unit:"m" });
+  const TMb={cableTotal:T.cableTotal,tubM:T.tubM,puntos:T.puntos,elemCount:T.elemCount};
+  (doc.materiales||[]).forEach(m=>{ const q=cantMaterial(m,TMb); if(q<=0) return;
+    arts.push({ key:"mat:"+m.id, name:m.nombre, category:m.categoria||"Accesorios",
+      quantity:+q.toFixed(2), unit:m.unidad==="m"?"m":"c/u" }); });
+  return { format:"planelectrico-cubicacion", version:2,
+    exportedAt:new Date().toISOString(),
+    source:{ app:"PlanElectricoPro", planoId:projectId||"", proyecto:projectName||"",
+      moneda:settings.moneda, pisos:(doc.pisos||[]).length||1 },
+    articulos:arts,
+    magnitudes:{ cableM:+T.cableTotal.toFixed(2), tuboM:+T.tubM.toFixed(2), puntos:T.puntos },
+    conteo:{ paredes:doc.walls.length, elementos:doc.elements.length } };
+}
 function bridgePayload(){
   const T=cotTotales();
   const mats=[];
@@ -3554,19 +3858,27 @@ function bridgePayload(){
       category: t==="panel"?"Tableros":"Dispositivos",
       quantity:T.elemCount[t], unit:"c/u", unitCost:priceOf(t) });
   });
-  if(T.cableTotal>0) mats.push({ key:"cable",
+  if(T.cableTotal>0 && !T.cableReemplazado) mats.push({ key:"cable",
     name:"Cable estimado por circuitos ("+T.cableTotal.toFixed(1)+" m)",
     category:"Cables", quantity:Math.ceil(T.cableTotal), unit:"m", unitCost:settings.precioCableM });
-  if(T.tubM>0) mats.push({ key:"tubo",
+  if(T.tubM>0 && !T.tuboReemplazado) mats.push({ key:"tubo",
     name:"Tubería conduit dibujada (≈"+Math.ceil(T.tubM/3)+" tubos de 3 m)",
     category:"Conduits", quantity:+T.tubM.toFixed(1), unit:"m", unitCost:settings.precioTuboM||0 });
+  // materiales propios del electricista: viajan como filas del puente (key "mat:*"),
+  // así la app madre los ve. Al reimportar reemplaza las pep_* y conserva sus mat_*.
+  const TMb={cableTotal:T.cableTotal,tubM:T.tubM,puntos:T.puntos,elemCount:T.elemCount};
+  (doc.materiales||[]).forEach(m=>{ const q=cantMaterial(m,TMb); if(q<=0) return;
+    mats.push({ key:"mat:"+m.id, name:m.nombre, category:m.categoria||"Accesorios",
+      quantity:+q.toFixed(2), unit:m.unidad==="m"?"m":"c/u",
+      unitCost:Math.max(0,+m.precio)||0 }); });
   return { format:"planelectrico-cubicacion", version:1,
     exportedAt:new Date().toISOString(),
     source:{ app:"PlanElectricoPro", proyecto:projectName||"", moneda:settings.moneda,
       pisos:(doc.pisos||[]).length||1 },
     materials:mats,
     labor:{ puntos:T.puntos, precioPunto:settings.precioPunto, manoObra:T.manoObra },
-    checksum:{ elemCost:T.elemCost, cableCost:T.cableCost, tubCost:T.tubCost, total:T.total } };
+    checksum:{ elemCost:T.elemCost, cableCost:T.cableReemplazado?0:T.cableCost,
+      tubCost:T.tuboReemplazado?0:T.tubCost, materialesCost:T.materialesCost, total:T.total } };
 }
 function exportBridgeJSON(){
   download((projectName||"plano").replace(/[^\wáéíóúñÁÉÍÓÚÑ -]/g,"")+".cubicacion.json",
@@ -3928,6 +4240,9 @@ try{
 // init
 if(window.parent!==window) document.documentElement.classList.add("embed"); // embebida en ElectroPlan Pro
 if(!loadSaved()){ seed(); projectId=newProjectId(); projectName="Casa de ejemplo"; }
+// El catálogo se siembra acá y no en normalizeSettings: un usuario NUEVO no tiene
+// config guardada, así que normalizeSettings ni siquiera se llama y se quedaría sin catálogo.
+settings.catalogo=settings.catalogo||[]; sembrarCatalogo();
 // Embebida: la app madre puede pedir un proyecto específico con ?proyecto=<nombre>
 try{ const qP=new URLSearchParams(location.search).get("proyecto");
   if(qP){ const ixQ=loadIndex(); const mQ=ixQ.find(p=>String(p.nombre||"").trim().toLowerCase()===qP.trim().toLowerCase());
