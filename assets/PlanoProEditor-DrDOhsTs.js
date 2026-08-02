@@ -1,1 +1,0 @@
-import{j as t}from"./index-Dp0iin1Y.js";function r({planoProyecto:e}){const l=e?`planelectrico/index.html?proyecto=${encodeURIComponent(e)}`:"planelectrico/index.html";return t.jsx("div",{className:"absolute inset-0 flex flex-col",children:t.jsx("iframe",{src:l,title:"Editor 2D/3D PlanElectricoPro",className:"flex-1 w-full border-0 bg-white"})})}export{r as default};
