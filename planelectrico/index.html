@@ -887,7 +887,6 @@ function doSave(){ try{
     setSave("","Guardado");
     // Embebida en ElectroPlan Pro (iframe same-origin): avisar cubicación fresca al padre.
     if(window.parent!==window){ try{
-      window.parent.postMessage({type:"pep:cubicacion",version:1,payload:bridgePayload()},location.origin);
       if(cub) window.parent.postMessage({type:"pep:cubicacion2",version:2,payload:cub},location.origin);
     }catch(e){} } }
   catch(e){ storageOK=false; setSave("err","Solo memoria"); } }
@@ -3766,13 +3765,11 @@ async function exportMenu(){
   const pick=await pedirOpcion("⇩ Exportar",[
     {k:"pdf",txt:"📄 PDF con membrete — para el cliente"},
     {k:"json",txt:"💾 JSON — respaldo completo (incluye fotos)"},
-    {k:"cub",txt:"🧮 Cubicación → ElectroPlan (materiales JSON)"},
     {k:"svg",txt:"🖼 SVG vectorial"},
     {k:"png",txt:"🖼 PNG imagen"},
     {k:"dxf",txt:"📐 DXF — AutoCAD / LibreCAD"}]);
   if(!pick) return;
   if(pick==="pdf") printPDF(); else if(pick==="json") exportJSON();
-  else if(pick==="cub") exportBridgeJSON();
   else if(pick==="svg") exportSVG(); else if(pick==="png") exportPNG();
   else if(pick==="dxf") exportDXF(); }
 function exportDXF(){
@@ -3853,41 +3850,6 @@ function cubicacionV2(){
     magnitudes:{ cableM:+T.cableTotal.toFixed(2), tuboM:+T.tubM.toFixed(2), puntos:T.puntos },
     conteo:{ paredes:doc.walls.length, elementos:doc.elements.length } };
 }
-function bridgePayload(){
-  const T=cotTotales();
-  const mats=[];
-  Object.keys(T.elemCount).forEach(t=>{
-    mats.push({ key:t, name:elInfo(t).name,
-      category: t==="panel"?"Tableros":"Dispositivos",
-      quantity:T.elemCount[t], unit:"c/u", unitCost:priceOf(t) });
-  });
-  if(T.cableTotal>0 && !T.cableReemplazado) mats.push({ key:"cable",
-    name:"Cable estimado por circuitos ("+T.cableTotal.toFixed(1)+" m)",
-    category:"Cables", quantity:Math.ceil(T.cableTotal), unit:"m", unitCost:settings.precioCableM });
-  if(T.tubM>0 && !T.tuboReemplazado) mats.push({ key:"tubo",
-    name:"Tubería conduit dibujada (≈"+Math.ceil(T.tubM/3)+" tubos de 3 m)",
-    category:"Conduits", quantity:+T.tubM.toFixed(1), unit:"m", unitCost:settings.precioTuboM||0 });
-  // materiales propios del electricista: viajan como filas del puente (key "mat:*"),
-  // así la app madre los ve. Al reimportar reemplaza las pep_* y conserva sus mat_*.
-  const TMb={cableTotal:T.cableTotal,tubM:T.tubM,puntos:T.puntos,elemCount:T.elemCount};
-  (doc.materiales||[]).forEach(m=>{ const q=cantMaterial(m,TMb); if(q<=0) return;
-    mats.push({ key:"mat:"+m.id, name:m.nombre, category:m.categoria||"Accesorios",
-      quantity:+q.toFixed(2), unit:m.unidad==="m"?"m":"c/u",
-      unitCost:Math.max(0,+m.precio)||0 }); });
-  return { format:"planelectrico-cubicacion", version:1,
-    exportedAt:new Date().toISOString(),
-    source:{ app:"PlanElectricoPro", proyecto:projectName||"", moneda:settings.moneda,
-      pisos:(doc.pisos||[]).length||1 },
-    materials:mats,
-    labor:{ puntos:T.puntos, precioPunto:settings.precioPunto, manoObra:T.manoObra },
-    checksum:{ elemCost:T.elemCost, cableCost:T.cableReemplazado?0:T.cableCost,
-      tubCost:T.tuboReemplazado?0:T.tubCost, materialesCost:T.materialesCost, total:T.total } };
-}
-function exportBridgeJSON(){
-  download((projectName||"plano").replace(/[^\wáéíóúñÁÉÍÓÚÑ -]/g,"")+".cubicacion.json",
-    "application/json",JSON.stringify(bridgePayload(),null,2));
-}
-
 function decorarPlano(sc,vb){
   const u=vb.w/100; const g=el("g",{});
   // flecha de norte (arriba-izquierda)
