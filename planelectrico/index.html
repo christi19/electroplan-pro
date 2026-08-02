@@ -457,7 +457,6 @@
       <button data-tab="insp" class="on">Inspector</button>
       <button data-tab="cir">⚡ Circuitos <span id="cirBadge" class="cotbadge" hidden>0</span></button>
       <button data-tab="layers">Capas</button>
-      <button data-tab="cot">Artículos <span id="cotBadge" class="cotbadge" hidden>0</span></button>
     </div>
     <div class="panelbody" id="panelbody"></div>
     <div class="status" id="status"></div>
@@ -1585,7 +1584,6 @@ function applyLayers(){ ["structure","openings","electrical","labels","fondo"].f
 let tool="select";
 let action=null; // {type,...}
 let fmtClip=null, pintarFormato=false; // cuentagotas / copiar formato
-let matPickerAbierto=false; // selector de material del catálogo, dentro de la cotización
 let smartGuides=[]; // guías inteligentes (magenta) mientras se arrastra
 let paredPressId=null; // pointer que inició el gesto de pared EN el lienzo (el up solo fija tramo si nació aquí)
 let vistaCliente=false; // ✨ plano limpio para enseñar al cliente (oculta cotas, anclas y técnica)
@@ -2302,7 +2300,6 @@ document.querySelectorAll(".tabs button").forEach(b=>b.onclick=()=>abrirTab(b.da
 function renderPanel(){ const p=document.getElementById("panelbody");
   updateCotBadge();
   if(tab==="layers") return renderLayers(p);
-  if(tab==="cot") return renderCot(p);
   if(tab==="cir") return renderCircuits(p);
   return renderInspector(p); }
 
@@ -2805,7 +2802,7 @@ function renderLayers(p){ const L=[["structure","🧱 Estructura (paredes)"],["o
   const fa=p.querySelector("[data-fadd]"); if(fa) fa.onclick=()=>document.getElementById("fondoInput").click();
 }
 
-// totales de cotización — única fuente de verdad (la usan renderCot, badge y toast)
+// Cubicación del plano: la usan el puente con ElectroPlan Pro y el aviso al colocar.
 // Magnitudes del plano a las que un material puede atar su cantidad.
 function magnitudDe(atado,T){
   if(atado==="cable_m") return T.cableTotal||0;
@@ -2830,149 +2827,6 @@ function cotTotales(){
     items:doc.elements.filter(e=>!elInfo(e.type).decorativo).length};
 }
 
-function renderCot(p){
-  const T=cotTotales();
-  const {elemCount,cableTotal,puntos,tubM,cableReemplazado,tuboReemplazado}=T;
-  const cirRows=doc.circuits.map(c=>{ const m=circuitCableM(c);
-    return `<tr><td><span style="color:${c.color}">⬤</span> ${c.name} (${c.amps}A · ${AWG_BY_BREAKER[c.amps]||"?"})</td><td class="n">${circuitPoints(c)} pts</td><td class="n">${m.toFixed(1)} m</td></tr>`; }).join("");
-  const erows=Object.keys(elemCount).map(k=>{ const i=elInfo(k);
-    return `<div class="cartrow"><span class="ci">${i.icon}</span>
-      <div class="cn">${i.name}</div>
-      <b class="cq">×${elemCount[k]}</b></div>`; }).join("");
-  const avisos=[];
-  if(puntos>0&&cableTotal===0) avisos.push(`⚠ Todavía <b>no se estima cable</b> — poné el ⚡ Tablero y creá circuitos. <button data-gocir="1" class="ghost" style="min-height:30px;padding:3px 10px">⚡ Ir a Circuitos</button>`);
-  const avisosHTML=avisos.length?`<div style="border:1px solid var(--danger);border-radius:8px;padding:8px 10px;margin:0 0 10px;font-size:12.5px;line-height:1.5">${avisos.join("<br>")}</div>`:"";
-  const TM={cableTotal,tubM,puntos,elemCount};
-  // De dónde sale la cantidad: a mano, o atada a una magnitud que el plano ya calcula.
-  const ATADURAS=[["","a mano"],["cable_m","metros de cable"],["tubo_m","metros de tubo"],
-    ["puntos","cantidad de puntos"]].concat(
-    Object.keys(elemCount).map(t=>["tipo:"+t,"cantidad de "+elInfo(t).name]));
-  const matRows=(doc.materiales||[]).map(m=>{
-    const q=cantMaterial(m,TM);
-    const nota=m.atado
-      ? "🔗 del plano"+(m.atado==="cable_m"?" · incluye "+(settings.desperdicio||0)+"% desperdicio":"")
-      : (m.unidad==="m"?"por metro":"por unidad");
-    return `<div class="matrow">
-      <span class="mi">${m.atado?"🔗":"🧰"}</span>
-      <div class="mn">${m.nombre}<small>${nota}</small></div>
-      <button data-mdel="${m.id}" class="ghost mdel" title="Quitar este material" aria-label="Quitar ${m.nombre}">🗑</button>
-      <div class="mops">
-        ${m.atado
-          ? `<span class="mx" title="Calculado del plano">${(Math.round(q*10)/10)} ${m.unidad}</span>`
-          : `<input data-mcant="${m.id}" type="number" min="0" step="0.1" value="${m.cant}" title="Cantidad (${m.unidad})" aria-label="Cantidad de ${m.nombre}">`}
-        <span class="mx">${m.unidad}</span>
-      </div>
-      <select data-matado="${m.id}" title="De dónde sale la cantidad" aria-label="Origen de la cantidad de ${m.nombre}" style="grid-column:2/4;max-width:100%">
-        ${ATADURAS.map(([v,t])=>`<option value="${v}"${(m.atado||"")===v?" selected":""}>${t}</option>`).join("")}
-      </select>
-    </div>`; }).join("");
-  const CATS_MAT=["Conduits","Cables","Dispositivos","Tableros","Accesorios"];
-  const catLista=(settings.catalogo||[]).map(c=>
-    `<button data-mcat="${c.id}" class="ghost" style="width:100%;justify-content:space-between;margin-bottom:4px;min-height:34px">
-       <span>${c.nombre}</span><b>${c.unidad}</b></button>`).join("");
-  const picker=matPickerAbierto?`<div style="border:1px solid var(--line);border-radius:8px;padding:10px;margin-top:8px;background:var(--panel2)">
-      <input id="matBuscar" type="search" placeholder="Buscar en mi catálogo…" style="width:100%;margin-bottom:8px">
-      <div id="matLista">${catLista||'<div class="muted">Tu catálogo está vacío.</div>'}</div>
-      <div class="kdt sec" style="margin:10px 0 6px">＋ Crear material nuevo</div>
-      <input id="matNuevoNombre" placeholder="Nombre (ej. Tubo EMT 1/2&quot;)" style="width:100%;margin-bottom:6px">
-      <div class="row" style="margin-bottom:6px">
-        <div class="field" style="margin:0"><label>Unidad</label><select id="matNuevaUnidad"><option value="u">unidad</option><option value="m">metro</option></select></div>
-        <div class="field" style="margin:0"><label>Categoría</label><select id="matNuevaCat">${CATS_MAT.map(c=>`<option value="${c}">${c}</option>`).join("")}</select></div>
-      </div>
-      <button id="matCrear" style="width:100%;justify-content:center;min-height:34px">＋ Crear y agregar</button>
-    </div>`:"";
-  p.innerHTML=`<div class="cottotal"><span class="kdt">🧾 ${T.items} artículo${T.items===1?"":"s"}</span><b>${puntos} pts</b></div>
-    <div class="kdt sec" style="margin:2px 0 8px">🧾 Artículos del plano</div>
-    <div>${erows||'<div class="muted" style="padding:10px 0">Todavía no hay artículos — tocá 🔌 💡 🎚️ en la barra y tocá el plano para colocarlos.</div>'}</div>
-    <div class="kdt sec sep" style="margin:14px 0 8px">🧰 Mis materiales</div>
-    <div>${matRows||'<div class="muted" style="padding:8px 0">Sin materiales propios todavía.</div>'}</div>
-    <button id="matAdd" class="ghost" style="width:100%;justify-content:center;margin-top:6px;min-height:34px">＋ Agregar material</button>
-    ${picker}
-    <div class="kdt sec sep" style="margin:14px 0 8px">🔧 Cable estimado por circuito</div>
-    <table class="cot"><tbody>${cirRows||'<tr><td colspan="3" class="muted">Sin circuitos — creálos en ⚡ Circuitos</td></tr>'}
-    ${cirRows?`<tr><td><b>Cable total</b></td><td></td><td class="n"><b>${cableTotal.toFixed(1)} m</b></td></tr>`:""}</tbody></table>
-    <div class="kdt sec sep" style="margin:14px 0 8px">Resumen de cantidades</div>
-    ${avisosHTML}
-    <table class="cot"><tbody>
-      <tr><td>Artículos colocados</td><td></td><td class="n">${T.items}</td></tr>
-      <tr><td>Puntos eléctricos</td><td></td><td class="n">${puntos}</td></tr>
-      <tr${cableReemplazado?' style="opacity:.55"':''}><td>Cable estimado${cableReemplazado?' <small>— lo cubren tus materiales</small>':''}</td><td></td><td class="n">${cableTotal.toFixed(1)} m</td></tr>
-      ${tubM>0?`<tr${tuboReemplazado?' style="opacity:.55"':''}><td>Tubería dibujada (≈ ${Math.ceil(tubM/3)} tubos de 3 m)${tuboReemplazado?' <small>— la cubren tus materiales</small>':''}</td><td></td><td class="n">${tubM.toFixed(1)} m</td></tr>`:""}
-    </tbody></table>
-    <div class="kdt sec sep" style="margin:14px 0 8px">⚙ Ajustes de estimación</div>
-    <div class="row" style="margin-bottom:10px">
-      <div class="field" style="margin:0"><label>% desperdicio</label><input id="c_dp" type="number" value="${settings.desperdicio}"></div>
-      <div class="field" style="margin:0"><label>m de cable por punto</label><input id="c_cxp" type="number" min="0" step="0.5" value="${settings.cableXPuntoM}" title="Holgura de conexión en cada salida (caja, empalme, bajada). El oficio usa 3,6–4,5 m"></div>
-    </div>
-    <div class="disclaimer">Acá se cuentan <b>cantidades</b>, no dinero. Los precios y la cotización viven en ElectroPlan Pro: abrí la obra y entrá a <b>Artículos y precios</b>. El cable se estima en escuadra hasta el tablero + ${settings.cableXPuntoM} m por punto + ${settings.desperdicio}% desperdicio; si dibujás la tubería, se usa su recorrido real.</div>`;
-  const gc=p.querySelector("[data-gocir]"); if(gc) gc.onclick=()=>abrirTab("cir");
-  const upd=()=>{ settings.desperdicio=+document.getElementById("c_dp").value||0;
-    settings.cableXPuntoM=Math.max(0,+document.getElementById("c_cxp").value||0);
-    scheduleSave(); renderPanel(); };
-  ["c_dp","c_cxp"].forEach(id=>document.getElementById(id).onchange=upd);
-  // materiales propios: guardan y repintan; no entran al undo
-  p.querySelectorAll("[data-mcant]").forEach(i=>i.onchange=()=>{
-    const m=(doc.materiales||[]).find(x=>x.id===i.dataset.mcant);
-    if(m){ m.cant=Math.max(0,+i.value||0); scheduleSave(); renderPanel(); } });
-  p.querySelectorAll("[data-matado]").forEach(s=>s.onchange=()=>{
-    const m=(doc.materiales||[]).find(x=>x.id===s.dataset.matado); if(!m) return;
-    if(!s.value){ m.cant=cantMaterial(m,TM); m.atado=null; }  // al desatar conserva lo calculado
-    else m.atado=s.value;
-    scheduleSave(); renderPanel(); });
-  const btnAdd=document.getElementById("matAdd");
-  if(btnAdd) btnAdd.onclick=()=>{ matPickerAbierto=!matPickerAbierto; renderPanel(); };
-  const agregarDesdeCat=c=>{ doc.materiales=doc.materiales||[];
-    doc.materiales.push({id:uid("dm"),catId:c.id,nombre:c.nombre,unidad:c.unidad,
-      precio:c.precio,cant:1,atado:null,categoria:c.categoria||"Accesorios"});
-    matPickerAbierto=false; scheduleSave(); renderPanel(); };
-  p.querySelectorAll("[data-mcat]").forEach(b=>b.onclick=()=>{
-    const c=(settings.catalogo||[]).find(x=>x.id===b.dataset.mcat); if(c) agregarDesdeCat(c); });
-  const bus=document.getElementById("matBuscar");
-  if(bus) bus.oninput=()=>{ const q=bus.value.toLowerCase();
-    p.querySelectorAll("[data-mcat]").forEach(b=>{
-      const c=(settings.catalogo||[]).find(x=>x.id===b.dataset.mcat);
-      b.style.display=(!q||(c&&c.nombre.toLowerCase().includes(q)))?"":"none"; }); };
-  const crear=document.getElementById("matCrear");
-  if(crear) crear.onclick=()=>{
-    const nombre=(document.getElementById("matNuevoNombre").value||"").trim();
-    if(!nombre){ avisar("Escribí el nombre del material."); return; }
-    const c={id:uid("mat"),nombre:nombre,
-      unidad:document.getElementById("matNuevaUnidad").value,
-      precio:0,
-      categoria:document.getElementById("matNuevaCat").value};
-    settings.catalogo=settings.catalogo||[]; settings.catalogo.push(c);
-    agregarDesdeCat(c); };
-  p.querySelectorAll("[data-mdel]").forEach(b=>b.onclick=()=>{
-    const m=(doc.materiales||[]).find(x=>x.id===b.dataset.mdel); if(!m) return;
-    if(!confirm("¿Quitar \""+m.nombre+"\" de este plano?")) return;
-    doc.materiales=doc.materiales.filter(x=>x.id!==m.id); scheduleSave(); renderPanel(); });
-
-}
-
-// corre en CADA render (o sea en cada pointermove): sin el guard de firma reescribía el
-// innerHTML y re-enlazaba todos los handlers por movimiento, puro desperdicio
-let _flSig="";
-function renderFloorbar(){ const fb=document.getElementById("floorbar"); if(!fb) return;
-  const ps=doc.pisos||[];
-  const html=(ps.length<=1)
-    ? '<button data-addfl="1" title="Agregar otra planta (piso)">🏢 ＋ Planta</button>'
-    : ps.map(p=>`<button data-fl="${p.id}" class="${p.id===doc.pisoActivo?"on":""}" title="Doble clic: renombrar">${p.nombre}</button>`).join("")+
-      `<button data-ghost="1" class="${settings.ghostPiso!==false?"on":""}" title="Ver el piso de abajo como calco (con imán a sus paredes)">👻</button>`+
-      '<button data-addfl="1" title="Agregar planta">＋</button>';
-  if(html===_flSig) return; // nada cambió: los botones y sus handlers siguen vivos
-  _flSig=html; fb.innerHTML=html;
-  fb.querySelectorAll("[data-fl]").forEach(b=>{
-    b.onclick=()=>{ if(doc.pisoActivo!==b.dataset.fl){ doc.pisoActivo=b.dataset.fl; setSel([]); draft=null; scheduleSave(); fitView(); } };
-    b.ondblclick=async ()=>{ const p=ps.find(x=>x.id===b.dataset.fl); if(!p)return;
-      const n=await pedir("✎ Nombre de la planta:",p.nombre); if(n){ p.nombre=n; scheduleSave(); renderFloorbar(); } }; });
-  const gb=fb.querySelector("[data-ghost]");
-  if(gb) gb.onclick=()=>{ settings.ghostPiso=(settings.ghostPiso===false); scheduleSave(); render(); };
-  const ab=fb.querySelector("[data-addfl]");
-  if(ab) ab.onclick=()=>{ const nombre="Planta "+(ps.length+1);
-    const np={id:"fl"+Date.now().toString(36),nombre:nombre};
-    doc.pisos.push(np); doc.pisoActivo=np.id; setSel([]); scheduleSave(); fitView();
-    avisar("🏢 "+nombre+" creada — estás en ella (lienzo vacío). Doble clic en su botón para renombrarla."); };
-}
 let _statusSig="";
 function renderStatus(){ const s=document.getElementById("status");
   const html=`<span>zoom ${(100/vb.w*1400|0)/1}%</span><span>paredes ${doc.walls.length}</span><span>ref 1ª: ${doc.walls.length?fmt(wallLen(doc.walls[0])):"—"}</span>${(doc.pisos&&doc.pisos.length>1)?`<span>🏢 ${((doc.pisos.find(p=>p.id===doc.pisoActivo)||{}).nombre)||""}</span>`:""}
@@ -2982,18 +2836,12 @@ function renderStatus(){ const s=document.getElementById("status");
 
 // badge del carrito en la pestaña Cotización — se actualiza en cada render (con guard de firma)
 let _cotSig="";
-function updateCotBadge(){ const b=document.getElementById("cotBadge"); if(!b) return;
-  // badge de puntos SIN circuito en la pestaña ⚡ — el cable no se estima hasta asignarlos
-  const bc=document.getElementById("cirBadge"); if(bc){
-    const sc=doc.elements.filter(e=>esElectrico(e)&&!e.circuitId).length;
-    bc.hidden=!sc; bc.textContent=sc>99?"99+":sc;
-    bc.title=sc+" punto"+(sc===1?"":"s")+" sin circuito — tocá para asignarlos"; }
-  const t=cotTotales(); const sig=String(t.items);
-  if(sig===_cotSig) return;
-  const crecio=+(_cotSig||0)<t.items; _cotSig=sig;
-  b.hidden=!t.items; b.textContent=t.items>99?"99+":t.items;
-  b.title=t.items+" artículo"+(t.items===1?"":"s")+" en el plano";
-  if(crecio){ b.classList.remove("pop"); void b.offsetWidth; b.classList.add("pop"); } }
+function updateCotBadge(){
+  // Ya no hay pestaña de artículos: queda el aviso de puntos sin circuito.
+  const bc=document.getElementById("cirBadge"); if(!bc) return;
+  const sc=doc.elements.filter(e=>esElectrico(e)&&!e.circuitId).length;
+  bc.hidden=!sc; bc.textContent=sc>99?"99+":sc;
+  bc.title=sc+" punto"+(sc===1?"":"s")+" sin circuito — tocá para asignarlos"; }
 
 /* ===================== XP ===================== */
 function addXP(n){ xp+=n; }
