@@ -854,7 +854,10 @@ function reindexIds(){ let mx=0; const scan=o=>{ const m=/(\d+)$/.exec(o||""); i
   doc.circuits.forEach(c=>scan(c.id)); doc.routes.forEach(r=>scan(r.id));
   (doc.photos||[]).forEach(p=>scan(p.id)); (doc.stairs||[]).forEach(s=>scan(s.id)); doc.labels.forEach(l=>scan(l.id)); doc.dims.forEach(d=>scan(d.id)); (doc.texts||[]).forEach(t=>scan(t.id));
   ID=mx+1; }
-function normalizeSettings(saved){ if(saved&&!saved.moneda){ settings.moneda="$"; }
+// Una config vieja sin moneda se queda en la del proyecto (₡), no en "$": marcarla
+// en dólares hacía que ElectroPlan Pro bloqueara todos los importes por moneda
+// distinta, sin que el usuario tuviera forma de arreglarlo desde la app.
+function normalizeSettings(saved){ if(saved&&!saved.moneda){ settings.moneda="₡"; }
   settings.precios=settings.precios||{}; settings.varByCat=settings.varByCat||{};
   settings.catalogo=settings.catalogo||[];
   if(settings.precioTuboM==null) settings.precioTuboM=DEF_MONEDA[settings.moneda].tubo;
@@ -4246,7 +4249,10 @@ settings.catalogo=settings.catalogo||[]; sembrarCatalogo();
 // Embebida: la app madre puede pedir un proyecto específico con ?proyecto=<nombre>
 try{ const qP=new URLSearchParams(location.search).get("proyecto");
   if(qP){ const ixQ=loadIndex(); const mQ=ixQ.find(p=>String(p.nombre||"").trim().toLowerCase()===qP.trim().toLowerCase());
-    if(mQ&&mQ.id!==projectId) openProject(mQ.id,false); } }catch(e){}
+    if(mQ){ if(mQ.id!==projectId) openProject(mQ.id,false); }
+    // Embebida y sin plano con ese nombre: crearlo. Así el vínculo con la obra
+    // nace solo y la app deja de cotizar en vacío. Suelta nunca crea nada.
+    else if(window.parent!==window){ createProject(qP.trim()); } } }catch(e){}
 // Divisor del panel lateral (escritorio): corré la línea del contenedor, estilo Illustrator.
 (function(){
   const rz=document.getElementById("sideResize"); if(!rz) return;
