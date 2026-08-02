@@ -452,7 +452,7 @@
       <button data-tab="insp" class="on">Inspector</button>
       <button data-tab="cir">⚡ Circuitos <span id="cirBadge" class="cotbadge" hidden>0</span></button>
       <button data-tab="layers">Capas</button>
-      <button data-tab="cot">Cotización <span id="cotBadge" class="cotbadge" hidden>0</span></button>
+      <button data-tab="cot">Artículos <span id="cotBadge" class="cotbadge" hidden>0</span></button>
     </div>
     <div class="panelbody" id="panelbody"></div>
     <div class="status" id="status"></div>
@@ -1360,7 +1360,7 @@ function renderCtxBar(){
     let cableHTML="";
     if(selection.length===2&&selection.every(s=>s.type==="element")){ const a=doc.elements.find(x=>x.id===selection[0].id),b=doc.elements.find(x=>x.id===selection[1].id);
       if(a&&b){ const rc=cableEntreDosM(a,b);
-        cableHTML=`<span class="cxg"><label>Cable</label><span style="font-family:var(--mono);font-size:12px;white-space:nowrap">📏 ${fmt(rc.recta_m*100)} · 🔌 ${fmt(rc.cable_m*100)} entubado · ${mon(rc.costo)}</span></span>`; } }
+        cableHTML=`<span class="cxg"><label>Cable</label><span style="font-family:var(--mono);font-size:12px;white-space:nowrap">📏 ${fmt(rc.recta_m*100)} · 🔌 ${fmt(rc.cable_m*100)} entubado</span></span>`; } }
     cb.innerHTML=head("✦ "+selection.length+" seleccionados")+cableHTML+
       `<span class="cxg"><label>Alinear</label>${B("al_l","Alinear a la izquierda","⬅")}${B("al_cx","Misma X (columna)","⬍")}${B("al_r","Alinear a la derecha","➡")}${B("al_t","Alinear arriba","⬆")}${B("al_cy","Misma Y (fila)","⬌")}${B("al_b","Alinear abajo","⬇")}</span>`+
       `<span class="cxg"><label>Distribuir</label>${B("ds_h","Espaciado horizontal igual","↔")}${B("ds_v","Espaciado vertical igual","↕")}</span>`;
@@ -1646,7 +1646,7 @@ function updateHint(){ const h=document.getElementById("hint");
   let txt=map[tool]||"";
   if(CATS[tool]){ const v=(settings.varByCat[tool]&&CATS[tool].includes(settings.varByCat[tool]))?settings.varByCat[tool]:CATS[tool][0];
     txt=(CATS[tool].length>1?"Elige el símbolo arriba a la izquierda · ":"")+
-      "Clic para colocar: "+ELEMENTS[v].name+" ("+mon(priceOf(v))+(ELEMENTS[v].va?" · "+ELEMENTS[v].va+" VA":"")+")"+
+      "Clic para colocar: "+ELEMENTS[v].name+(ELEMENTS[v].va?" ("+ELEMENTS[v].va+" VA)":"")+
       " · o ARRASTRÁ la ficha directo al plano"; }
   h.textContent=txt; h.style.display=txt?"":"none";
   if(document.body.classList.contains("mobile")&&txt){ clearTimeout(window.__hintT);
@@ -1870,7 +1870,7 @@ try{ (screen.orientation||matchMedia("(orientation: portrait)")).addEventListene
 function tipCorto(host){ const k=host.getAttribute("data-kind"), id=host.getAttribute("data-id");
   if(k==="element"){ const e=doc.elements.find(x=>x.id===id); if(!e)return null; const i=elInfo(e.type);
     const c=circuitOf(e.circuitId);
-    return i.icon+" "+i.name+(e.label?" · "+e.label:"")+(c?" · ⚡"+c.name:"")+" · "+mon(priceOf(e.type)); }
+    return i.icon+" "+i.name+(e.label?" · "+e.label:"")+(c?" · ⚡"+c.name:""); }
   if(k==="wall"){ const w=doc.walls.find(x=>x.id===id); if(!w)return null;
     return "🧱 "+fmt(wallLen(w))+(w.curve?" ⌒":"")+" · "+(w.material||""); }
   if(k==="opening"){ const o=doc.openings.find(x=>x.id===id); if(!o)return null;
@@ -1921,7 +1921,7 @@ svg.addEventListener("pointermove",ev=>{
       html=`<b>${i.icon} ${i.name}</b>${e.label?" · "+e.label:""}<br>`+
         (e.type==="panel"
           ? `Centro de carga · ${doc.circuits.length} circuito(s)`
-          : `⚡ ${c?c.name+" ("+c.amps+" A)":"⚠ sin circuito"}<br>Altura: ${alturaOf(e)} cm · ${i.va||0} VA · ${mon(priceOf(e.type))}`)+
+          : `⚡ ${c?c.name+" ("+c.amps+" A)":"⚠ sin circuito"}<br>Altura: ${alturaOf(e)} cm · ${i.va||0} VA`)+
         (SWITCH_TYPES.includes(e.type)&&(e.controla||[]).length?`<br>💡 controla ${(e.controla||[]).length} luz(es)`:"")+
         (swBy?`<br>🎚 controlado por ${swBy} apagador(es)`:"");
       if(e.notes) html+=`<br><i>${e.notes.slice(0,60)}</i>`; } }
@@ -2070,7 +2070,7 @@ function colocarElemento(cat,sp){
   const e={id:uid("e"),type:et,x:sp.x,y:sp.y,label:"",notes:"",piso:doc.pisoActivo}; doc.elements.push(e);
   settings.recientes=[et,...(settings.recientes||[]).filter(x=>x!==et)].slice(0,6); // recientes de la biblioteca
   setSel([{type:"element",id:e.id}]); addXP(3); pushHistory(); render();
-  const inf=elInfo(et); avisarCot(inf.icon+" "+inf.name+" añadido — total "+mon(cotTotales().total));
+  const inf=elInfo(et); avisarCot(inf.icon+" "+inf.name+" añadido — "+cotTotales().items+" artículos en el plano");
   return e;
 }
 
@@ -2332,7 +2332,7 @@ function renderInspector(p){
         const linkBtn=(parSW&&parLZ)?(yaV?`<div class="muted" style="margin-top:5px">🔗 Apagador y luz vinculados</div>`:`<button id="f_linkpair" style="width:100%;justify-content:center;margin-top:6px">🔗 Vincular apagador y luz</button>`):"";
         cableInfo=`<div style="background:var(--panel2);border-radius:9px;padding:9px 11px;margin:6px 0">
           <div style="font-weight:700">🔌 Cable entre los 2</div>
-          <div style="font-family:var(--mono);font-size:13px;margin-top:3px;line-height:1.7">📏 Distancia: ${fmt(rc.recta_m*100)}<br>🔌 Estimado: ${fmt(rc.cable_m*100)} <span style="color:var(--soft)">entubado</span><br>💰 ${mon(rc.costo)}</div>
+          <div style="font-family:var(--mono);font-size:13px;margin-top:3px;line-height:1.7">📏 Distancia: ${fmt(rc.recta_m*100)}<br>🔌 Estimado: ${fmt(rc.cable_m*100)} <span style="color:var(--soft)">entubado</span></div>
           <div class="muted" style="font-size:11px;margin-top:2px">Ortogonal + bajadas + ${settings.desperdicio||0}% desperdicio.</div>
           ${linkBtn}</div>`; } }
     const cirOpts=`<option value="">— elegir circuito —</option>`+
@@ -2419,7 +2419,6 @@ function renderInspector(p){
       ${field("Etiqueta",`<input id="f_lbl" value="${e.label||""}" placeholder="T1, Cocina…">`)}
       ${isPanel?"":field("⚡ Circuito",`<select id="f_cir">${cirOpts}</select>`)}
       ${HANGING.includes(e.type)?"":field("Altura de montaje (cm sobre piso)",`<input id="f_alt" type="number" value="${alturaOf(e)}">`)}
-      ${isPanel?"":field(`Precio unitario (${settings.moneda}) — todos los "${info.name}" de ESTE proyecto`,`<input id="f_price" type="number" step="0.01" value="${priceOf(e.type)}">`)}
       ${SWITCH_TYPES.includes(e.type)?`<div class="field"><label>💡 Luces que controla (${(e.controla||[]).length})</label>
         <div class="muted" style="margin-bottom:6px">${(e.controla||[]).map(id=>{const lz=doc.elements.find(x=>x.id===id);return lz?elInfo(lz.type).icon+" "+(lz.label||elInfo(lz.type).name):null;}).filter(Boolean).join(" · ")||"ninguna — vinculá abajo"}</div>
         <button id="f_link" style="width:100%;justify-content:center">🔗 Vincular: tocá las luces en el plano</button></div>`:""}
@@ -2431,8 +2430,6 @@ function renderInspector(p){
     bind("f_notes","input",v=>{e.notes=v;scheduleSave();},true);
     const fAlt=document.getElementById("f_alt");
     if(fAlt) fAlt.onchange=ev=>{ e.alturaCm=+ev.target.value||0; pushHistory(); render3dIf(); };
-    const fPrice=document.getElementById("f_price");
-    if(fPrice) fPrice.onchange=ev=>{ doc.precios[e.type]=+ev.target.value||0; scheduleSave(); };
     const fLink=document.getElementById("f_link");
     if(fLink) fLink.onclick=()=>{ linkMode=e.id; updateHint(); render(true); };
     if(!isPanel){ document.getElementById("f_cir").onchange=ev=>{
@@ -2828,62 +2825,43 @@ function magnitudDe(atado,T){
   return 0;
 }
 function cantMaterial(m,T){ return m&&m.atado?magnitudDe(m.atado,T):Math.max(0,+((m||{}).cant)||0); }
+// Cubicación del plano: SOLO cantidades. El dinero vive en ElectroPlan Pro.
 function cotTotales(){
   const elemCount={}; doc.elements.forEach(e=>{ if(!elInfo(e.type).decorativo) elemCount[e.type]=(elemCount[e.type]||0)+1; });
-  const elemCost=doc.elements.reduce((s,e)=>s+priceOf(e.type),0);
   let cableTotal=0; doc.circuits.forEach(c=>cableTotal+=circuitCableM(c));
-  const cableCost=cableTotal*settings.precioCableM;
   const puntos=doc.elements.filter(esElectrico).length;
-  const manoObra=puntos*settings.precioPunto;
   const tubM=doc.routes.reduce((s,r)=>s+routeLen(r)/CM_PER_M,0);
-  const tubCost=tubM*(settings.precioTuboM||0);
-  // Materiales propios del electricista. Si ata uno a los metros de cable o de tubo,
-  // ese material REEMPLAZA la línea automática: si no, el cable se cobraría dos veces.
+  // Materiales propios del electricista. Si uno se ata a los metros de cable o de
+  // tubo, REEMPLAZA a la línea automática: si no, la cantidad se contaría dos veces.
   const mats=doc.materiales||[];
-  const TM={cableTotal,tubM,puntos,elemCount};
-  const materialesCost=mats.reduce((s,m)=>s+cantMaterial(m,TM)*(Math.max(0,+m.precio)||0),0);
   const cableReemplazado=mats.some(m=>m.atado==="cable_m");
   const tuboReemplazado=mats.some(m=>m.atado==="tubo_m");
-  return {elemCount,elemCost,cableTotal,cableCost,puntos,manoObra,tubM,tubCost,
-    materialesCost,cableReemplazado,tuboReemplazado,
-    items:doc.elements.filter(e=>!elInfo(e.type).decorativo).length,
-    total:elemCost+(cableReemplazado?0:cableCost)+manoObra+(tuboReemplazado?0:tubCost)+materialesCost};
+  return {elemCount,cableTotal,puntos,tubM,cableReemplazado,tuboReemplazado,
+    items:doc.elements.filter(e=>!elInfo(e.type).decorativo).length};
 }
 
 function renderCot(p){
-  const M=settings.moneda;
   const T=cotTotales();
-  const {elemCount,elemCost,cableTotal,cableCost,puntos,manoObra,tubM,tubCost,total,
-    materialesCost,cableReemplazado,tuboReemplazado}=T;
+  const {elemCount,cableTotal,puntos,tubM,cableReemplazado,tuboReemplazado}=T;
   const cirRows=doc.circuits.map(c=>{ const m=circuitCableM(c);
     return `<tr><td><span style="color:${c.color}">⬤</span> ${c.name} (${c.amps}A · ${AWG_BY_BREAKER[c.amps]||"?"})</td><td class="n">${circuitPoints(c)} pts</td><td class="n">${m.toFixed(1)} m</td></tr>`; }).join("");
-  const erows=Object.keys(elemCount).map(k=>{ const i=elInfo(k); const sinP=priceOf(k)===0;
+  const erows=Object.keys(elemCount).map(k=>{ const i=elInfo(k);
     return `<div class="cartrow"><span class="ci">${i.icon}</span>
-      <div class="cn">${i.name}<small>${sinP?'<b style="color:var(--danger)">⚠ sin precio — escribilo aquí →</b>':mon(priceOf(k))+" c/u"}</small></div>
-      <span class="cq">×${elemCount[k]}</span>
-      <input data-price="${k}" type="number" step="0.01" value="${priceOf(k)}" title="Precio unitario (${M}) — todos los ${i.name} de este proyecto"${sinP?' style="border-color:var(--danger)"':''}>
-      <b class="cs">${mon(elemCount[k]*priceOf(k))}</b></div>`; }).join("");
-  const sinPrecio=Object.keys(elemCount).filter(k=>priceOf(k)===0).length;
+      <div class="cn">${i.name}</div>
+      <b class="cq">×${elemCount[k]}</b></div>`; }).join("");
   const avisos=[];
-  if(puntos>0&&cableTotal===0) avisos.push(`⚠ Este total <b>NO incluye cable</b> — poné el ⚡ Tablero y creá circuitos para estimarlo. <button data-gocir="1" class="ghost" style="min-height:30px;padding:3px 10px">⚡ Ir a Circuitos</button>`);
-  if(sinPrecio>0) avisos.push(`⚠ ${sinPrecio} producto${sinPrecio===1?"":"s"} del plano sin precio: suma${sinPrecio===1?"":"n"} ${M}0 al total. Escribí el precio en su casilla.`);
+  if(puntos>0&&cableTotal===0) avisos.push(`⚠ Todavía <b>no se estima cable</b> — poné el ⚡ Tablero y creá circuitos. <button data-gocir="1" class="ghost" style="min-height:30px;padding:3px 10px">⚡ Ir a Circuitos</button>`);
   const avisosHTML=avisos.length?`<div style="border:1px solid var(--danger);border-radius:8px;padding:8px 10px;margin:0 0 10px;font-size:12.5px;line-height:1.5">${avisos.join("<br>")}</div>`:"";
-  const usados=Object.keys(elemCount);
-  const catRows=usados.map(k=>`<tr><td>${elInfo(k).icon} ${elInfo(k).name}</td>
-    <td class="n"><input data-price="${k}" type="number" value="${priceOf(k)}" style="width:92px;background:var(--panel2);border:1px solid var(--line);border-radius:6px;color:var(--ink);padding:3px 6px;text-align:right"></td></tr>`).join("");
   const TM={cableTotal,tubM,puntos,elemCount};
   // De dónde sale la cantidad: a mano, o atada a una magnitud que el plano ya calcula.
   const ATADURAS=[["","a mano"],["cable_m","metros de cable"],["tubo_m","metros de tubo"],
     ["puntos","cantidad de puntos"]].concat(
     Object.keys(elemCount).map(t=>["tipo:"+t,"cantidad de "+elInfo(t).name]));
   const matRows=(doc.materiales||[]).map(m=>{
-    const q=cantMaterial(m,TM); const sub=q*(Math.max(0,+m.precio)||0);
+    const q=cantMaterial(m,TM);
     const nota=m.atado
       ? "🔗 del plano"+(m.atado==="cable_m"?" · incluye "+(settings.desperdicio||0)+"% desperdicio":"")
       : (m.unidad==="m"?"por metro":"por unidad");
-    // el renglón guarda su COPIA del precio; si el catálogo cambió, se ofrece traerlo (nunca solo)
-    const cat=(settings.catalogo||[]).find(c=>c.id===m.catId);
-    const desfasado=cat&&(Math.max(0,+cat.precio)||0)!==(Math.max(0,+m.precio)||0);
     return `<div class="matrow">
       <span class="mi">${m.atado?"🔗":"🧰"}</span>
       <div class="mn">${m.nombre}<small>${nota}</small></div>
@@ -2892,10 +2870,7 @@ function renderCot(p){
         ${m.atado
           ? `<span class="mx" title="Calculado del plano">${(Math.round(q*10)/10)} ${m.unidad}</span>`
           : `<input data-mcant="${m.id}" type="number" min="0" step="0.1" value="${m.cant}" title="Cantidad (${m.unidad})" aria-label="Cantidad de ${m.nombre}">`}
-        <span class="mx">×</span>
-        <input data-mprecio="${m.id}" type="number" step="0.01" min="0" value="${m.precio}" title="Precio unitario (${M})" aria-label="Precio de ${m.nombre}">
-        <b class="ms">${mon(sub)}</b>
-        ${desfasado?`<button data-msync="${m.id}" class="ghost mdel" title="Tu catálogo dice ${mon(cat.precio)} — traer ese precio" aria-label="Traer el precio del catálogo para ${m.nombre}">↻</button>`:""}
+        <span class="mx">${m.unidad}</span>
       </div>
       <select data-matado="${m.id}" title="De dónde sale la cantidad" aria-label="Origen de la cantidad de ${m.nombre}" style="grid-column:2/4;max-width:100%">
         ${ATADURAS.map(([v,t])=>`<option value="${v}"${(m.atado||"")===v?" selected":""}>${t}</option>`).join("")}
@@ -2904,83 +2879,51 @@ function renderCot(p){
   const CATS_MAT=["Conduits","Cables","Dispositivos","Tableros","Accesorios"];
   const catLista=(settings.catalogo||[]).map(c=>
     `<button data-mcat="${c.id}" class="ghost" style="width:100%;justify-content:space-between;margin-bottom:4px;min-height:34px">
-       <span>${c.nombre}</span><b>${mon(c.precio)}/${c.unidad}</b></button>`).join("");
+       <span>${c.nombre}</span><b>${c.unidad}</b></button>`).join("");
   const picker=matPickerAbierto?`<div style="border:1px solid var(--line);border-radius:8px;padding:10px;margin-top:8px;background:var(--panel2)">
       <input id="matBuscar" type="search" placeholder="Buscar en mi catálogo…" style="width:100%;margin-bottom:8px">
       <div id="matLista">${catLista||'<div class="muted">Tu catálogo está vacío.</div>'}</div>
       <div class="kdt sec" style="margin:10px 0 6px">＋ Crear material nuevo</div>
       <input id="matNuevoNombre" placeholder="Nombre (ej. Tubo EMT 1/2&quot;)" style="width:100%;margin-bottom:6px">
       <div class="row" style="margin-bottom:6px">
-        <div class="field" style="margin:0"><label>Precio (${M})</label><input id="matNuevoPrecio" type="number" min="0" step="0.01" value="0"></div>
         <div class="field" style="margin:0"><label>Unidad</label><select id="matNuevaUnidad"><option value="u">unidad</option><option value="m">metro</option></select></div>
+        <div class="field" style="margin:0"><label>Categoría</label><select id="matNuevaCat">${CATS_MAT.map(c=>`<option value="${c}">${c}</option>`).join("")}</select></div>
       </div>
-      <div class="field" style="margin:0 0 8px"><label>Categoría</label><select id="matNuevaCat">${CATS_MAT.map(c=>`<option value="${c}">${c}</option>`).join("")}</select></div>
       <button id="matCrear" style="width:100%;justify-content:center;min-height:34px">＋ Crear y agregar</button>
     </div>`:"";
-  p.innerHTML=`<div class="cottotal"><span class="kdt">🧾 ${T.items} producto${T.items===1?"":"s"} · ${puntos} pts</span><b>${mon(total)}</b></div>
-    <div class="kdt sec" style="margin:2px 0 8px">🧾 Productos del plano</div>
-    <div>${erows||'<div class="muted" style="padding:10px 0">Carrito vacío — tocá 🔌 💡 🎚️ en la barra y tocá el plano para añadir productos.</div>'}</div>
-    <div class="kdt sec sep" style="margin:14px 0 8px">🧰 Materiales</div>
+  p.innerHTML=`<div class="cottotal"><span class="kdt">🧾 ${T.items} artículo${T.items===1?"":"s"}</span><b>${puntos} pts</b></div>
+    <div class="kdt sec" style="margin:2px 0 8px">🧾 Artículos del plano</div>
+    <div>${erows||'<div class="muted" style="padding:10px 0">Todavía no hay artículos — tocá 🔌 💡 🎚️ en la barra y tocá el plano para colocarlos.</div>'}</div>
+    <div class="kdt sec sep" style="margin:14px 0 8px">🧰 Mis materiales</div>
     <div>${matRows||'<div class="muted" style="padding:8px 0">Sin materiales propios todavía.</div>'}</div>
     <button id="matAdd" class="ghost" style="width:100%;justify-content:center;margin-top:6px;min-height:34px">＋ Agregar material</button>
     ${picker}
-    <div class="kdt sec sep" style="margin:14px 0 8px">🔧 Servicios estimados — cable por circuito</div>
-    <table class="cot"><tbody>${cirRows||'<tr><td colspan="3" class="muted">Sin circuitos — créalos en ⚡ Circuitos</td></tr>'}
-    ${cirRows?`<tr><td><b>Cable total</b></td><td></td><td class="n"><b>${cableTotal.toFixed(1)} m · ${mon(cableCost)}</b></td></tr>`:""}</tbody></table>
-    <div class="kdt sec sep" style="margin:14px 0 8px">Resumen</div>
+    <div class="kdt sec sep" style="margin:14px 0 8px">🔧 Cable estimado por circuito</div>
+    <table class="cot"><tbody>${cirRows||'<tr><td colspan="3" class="muted">Sin circuitos — creálos en ⚡ Circuitos</td></tr>'}
+    ${cirRows?`<tr><td><b>Cable total</b></td><td></td><td class="n"><b>${cableTotal.toFixed(1)} m</b></td></tr>`:""}</tbody></table>
+    <div class="kdt sec sep" style="margin:14px 0 8px">Resumen de cantidades</div>
     ${avisosHTML}
     <table class="cot"><tbody>
-      <tr><td>Materiales (dispositivos)</td><td></td><td class="n">${mon(elemCost)}</td></tr>
-      <tr${cableReemplazado?' style="opacity:.55;text-decoration:line-through"':''}><td>Cable (${cableTotal.toFixed(0)} m est.)${cableReemplazado?' <small style="text-decoration:none;opacity:.9">— reemplazado por tus materiales</small>':''}</td><td></td><td class="n">${mon(cableCost)}</td></tr>
-      ${tubM>0?`<tr${tuboReemplazado?' style="opacity:.55;text-decoration:line-through"':''}><td>Tubería dibujada (${tubM.toFixed(1)} m ≈ ${Math.ceil(tubM/3)} tubos de 3 m)${tuboReemplazado?' <small style="text-decoration:none;opacity:.9">— reemplazada por tus materiales</small>':''}</td><td></td><td class="n">${mon(tubCost)}</td></tr>`:""}
-      ${materialesCost>0?`<tr><td>Materiales propios</td><td></td><td class="n">${mon(materialesCost)}</td></tr>`:""}
-      <tr><td>Mano de obra (${puntos} puntos × ${mon(settings.precioPunto)})</td><td></td><td class="n">${mon(manoObra)}</td></tr>
-    </tbody><tfoot><tr><td>TOTAL</td><td></td><td class="n">${mon(total)}</td></tr></tfoot></table>
-    <div class="kdt sec sep" style="margin:14px 0 8px">⚙ Parámetros</div>
+      <tr><td>Artículos colocados</td><td></td><td class="n">${T.items}</td></tr>
+      <tr><td>Puntos eléctricos</td><td></td><td class="n">${puntos}</td></tr>
+      <tr${cableReemplazado?' style="opacity:.55"':''}><td>Cable estimado${cableReemplazado?' <small>— lo cubren tus materiales</small>':''}</td><td></td><td class="n">${cableTotal.toFixed(1)} m</td></tr>
+      ${tubM>0?`<tr${tuboReemplazado?' style="opacity:.55"':''}><td>Tubería dibujada (≈ ${Math.ceil(tubM/3)} tubos de 3 m)${tuboReemplazado?' <small>— la cubren tus materiales</small>':''}</td><td></td><td class="n">${tubM.toFixed(1)} m</td></tr>`:""}
+    </tbody></table>
+    <div class="kdt sec sep" style="margin:14px 0 8px">⚙ Ajustes de estimación</div>
     <div class="row" style="margin-bottom:10px">
-      <div class="field" style="margin:0"><label>Moneda</label><select id="c_mon"><option value="₡" ${M==="₡"?"selected":""}>₡ colones</option><option value="$" ${M==="$"?"selected":""}>$ dólares</option></select></div>
-      <div class="field" style="margin:0"><label>${M}/punto (mano obra)</label><input id="c_pp" type="number" value="${settings.precioPunto}"></div>
-    </div>
-    <div class="row" style="margin-bottom:10px">
-      <div class="field" style="margin:0"><label>${M}/m cable</label><input id="c_pc" type="number" step="0.1" value="${settings.precioCableM}"></div>
-      <div class="field" style="margin:0"><label>% desperd.</label><input id="c_dp" type="number" value="${settings.desperdicio}"></div>
-      <div class="field" style="margin:0"><label>${M}/m tubo</label><input id="c_pt" type="number" step="0.1" value="${settings.precioTuboM}"></div>
-    </div>
-    <div class="row" style="margin-bottom:10px">
+      <div class="field" style="margin:0"><label>% desperdicio</label><input id="c_dp" type="number" value="${settings.desperdicio}"></div>
       <div class="field" style="margin:0"><label>m de cable por punto</label><input id="c_cxp" type="number" min="0" step="0.5" value="${settings.cableXPuntoM}" title="Holgura de conexión en cada salida (caja, empalme, bajada). El oficio usa 3,6–4,5 m"></div>
     </div>
-    <details style="margin-top:12px"><summary style="cursor:pointer;color:var(--accent);font-weight:700;font-size:12.5px;padding:9px;border:1px dashed var(--accent);border-radius:8px;text-align:center;list-style:none">✎ CATÁLOGO DE PRECIOS DE ESTE PROYECTO (${M})</summary>
-      <table class="cot" style="margin-top:8px"><tbody>${catRows||`<tr><td class="muted">Coloca elementos en el plano y aparecerán aquí para ponerles precio.</td></tr>`}</tbody></table>
-      <button id="catReset" class="ghost" style="width:100%;justify-content:center;margin-top:6px;min-height:30px">↺ Restaurar precios de fábrica</button>
-    </details>
-    <button id="cotExp" style="width:100%;justify-content:center;margin-top:14px">⇩ Exportar cotización (CSV)</button>
-    <div class="disclaimer">Toda cantidad es <b>ESTIMACIÓN revisable</b>: ajusta tu catálogo de precios antes de enviarla al cliente. Los precios de fábrica en ₡ son referencias aproximadas de ferretería CR (jul-2026) — edítalos con TUS precios. El cable se estima en escuadra hasta el tablero (horizontal + vertical, como se tiende el tubo) + ${settings.cableXPuntoM} m por punto + ${settings.desperdicio}% desperdicio. Si dibujás la tubería, se usa su recorrido real en vez de la escuadra.</div>`;
+    <div class="disclaimer">Acá se cuentan <b>cantidades</b>, no dinero. Los precios y la cotización viven en ElectroPlan Pro: abrí la obra y entrá a <b>Artículos y precios</b>. El cable se estima en escuadra hasta el tablero + ${settings.cableXPuntoM} m por punto + ${settings.desperdicio}% desperdicio; si dibujás la tubería, se usa su recorrido real.</div>`;
   const gc=p.querySelector("[data-gocir]"); if(gc) gc.onclick=()=>abrirTab("cir");
-  document.getElementById("c_mon").onchange=e=>{ const nm=e.target.value;
-    if(nm!==settings.moneda){ settings.moneda=nm; settings.precios={};
-      settings.precioPunto=DEF_MONEDA[nm].punto; settings.precioCableM=DEF_MONEDA[nm].cable; settings.precioTuboM=DEF_MONEDA[nm].tubo; doc.precios={};
-      scheduleSave(); renderPanel(); } };
-  const upd=()=>{ settings.precioPunto=+document.getElementById("c_pp").value||0;
-    settings.precioCableM=+document.getElementById("c_pc").value||0;
-    settings.desperdicio=+document.getElementById("c_dp").value||0;
-    settings.precioTuboM=+document.getElementById("c_pt").value||0;
+  const upd=()=>{ settings.desperdicio=+document.getElementById("c_dp").value||0;
     settings.cableXPuntoM=Math.max(0,+document.getElementById("c_cxp").value||0);
     scheduleSave(); renderPanel(); };
-  ["c_pp","c_pc","c_dp","c_pt","c_cxp"].forEach(id=>document.getElementById(id).onchange=upd);
-  p.querySelectorAll("input[data-price]").forEach(inp=>inp.onchange=()=>{
-    doc.precios[inp.dataset.price]=+inp.value||0; scheduleSave(); renderPanel(); });
-  // materiales propios: mismo trato que los precios (guardan y repintan; no entran al undo)
+  ["c_dp","c_cxp"].forEach(id=>document.getElementById(id).onchange=upd);
+  // materiales propios: guardan y repintan; no entran al undo
   p.querySelectorAll("[data-mcant]").forEach(i=>i.onchange=()=>{
     const m=(doc.materiales||[]).find(x=>x.id===i.dataset.mcant);
     if(m){ m.cant=Math.max(0,+i.value||0); scheduleSave(); renderPanel(); } });
-  p.querySelectorAll("[data-mprecio]").forEach(i=>i.onchange=()=>{
-    const m=(doc.materiales||[]).find(x=>x.id===i.dataset.mprecio);
-    if(m){ m.precio=Math.max(0,+i.value||0); scheduleSave(); renderPanel(); } });
-  p.querySelectorAll("[data-msync]").forEach(b=>b.onclick=()=>{
-    const m=(doc.materiales||[]).find(x=>x.id===b.dataset.msync); if(!m) return;
-    const c=(settings.catalogo||[]).find(x=>x.id===m.catId); if(!c) return;
-    m.precio=Math.max(0,+c.precio)||0; scheduleSave(); renderPanel();
-    avisar("↻ Precio actualizado desde tu catálogo."); });
   p.querySelectorAll("[data-matado]").forEach(s=>s.onchange=()=>{
     const m=(doc.materiales||[]).find(x=>x.id===s.dataset.matado); if(!m) return;
     if(!s.value){ m.cant=cantMaterial(m,TM); m.atado=null; }  // al desatar conserva lo calculado
@@ -3005,21 +2948,15 @@ function renderCot(p){
     if(!nombre){ avisar("Escribí el nombre del material."); return; }
     const c={id:uid("mat"),nombre:nombre,
       unidad:document.getElementById("matNuevaUnidad").value,
-      precio:Math.max(0,+document.getElementById("matNuevoPrecio").value||0),
+      precio:0,
       categoria:document.getElementById("matNuevaCat").value};
     settings.catalogo=settings.catalogo||[]; settings.catalogo.push(c);
     agregarDesdeCat(c); };
   p.querySelectorAll("[data-mdel]").forEach(b=>b.onclick=()=>{
     const m=(doc.materiales||[]).find(x=>x.id===b.dataset.mdel); if(!m) return;
-    if(!confirm("¿Quitar \""+m.nombre+"\" de esta cotización?")) return;
+    if(!confirm("¿Quitar \""+m.nombre+"\" de este plano?")) return;
     doc.materiales=doc.materiales.filter(x=>x.id!==m.id); scheduleSave(); renderPanel(); });
-  document.getElementById("catReset").onclick=()=>{ doc.precios={}; scheduleSave(); renderPanel(); };
-  document.getElementById("cotExp").onclick=()=>{ let csv="Concepto,Cantidad,Costo ("+M+")\n";
-    Object.keys(elemCount).forEach(k=>csv+=`${elInfo(k).name},${elemCount[k]}u,${Math.round(elemCount[k]*priceOf(k))}\n`);
-    doc.circuits.forEach(c=>csv+=`Cable ${c.name} (${AWG_BY_BREAKER[c.amps]||"?"} AWG),${circuitCableM(c).toFixed(1)}m,${Math.round(circuitCableM(c)*settings.precioCableM)}\n`);
-    if(tubM>0) csv+=`Tubería,${tubM.toFixed(1)}m,${Math.round(tubCost)}\n`;
-    csv+=`Mano de obra,${puntos} puntos,${Math.round(manoObra)}\n`;
-    csv+=`TOTAL,,${Math.round(total)}\n`; download("cotizacion-planelectrico.csv","text/csv",csv); };
+
 }
 
 // corre en CADA render (o sea en cada pointermove): sin el guard de firma reescribía el
@@ -3061,11 +2998,11 @@ function updateCotBadge(){ const b=document.getElementById("cotBadge"); if(!b) r
     const sc=doc.elements.filter(e=>esElectrico(e)&&!e.circuitId).length;
     bc.hidden=!sc; bc.textContent=sc>99?"99+":sc;
     bc.title=sc+" punto"+(sc===1?"":"s")+" sin circuito — tocá para asignarlos"; }
-  const t=cotTotales(); const sig=t.items+"|"+Math.round(t.total);
+  const t=cotTotales(); const sig=String(t.items);
   if(sig===_cotSig) return;
-  const crecio=+(_cotSig.split("|")[0]||0)<t.items; _cotSig=sig;
+  const crecio=+(_cotSig||0)<t.items; _cotSig=sig;
   b.hidden=!t.items; b.textContent=t.items>99?"99+":t.items;
-  b.title="Total estimado: "+mon(t.total);
+  b.title=t.items+" artículo"+(t.items===1?"":"s")+" en el plano";
   if(crecio){ b.classList.remove("pop"); void b.offsetWidth; b.classList.add("pop"); } }
 
 /* ===================== XP ===================== */
@@ -3684,7 +3621,7 @@ function mostrarTipSimbolo(tile){
   if(window.matchMedia&&!matchMedia("(hover:hover)").matches) return; // solo con mouse real, nunca en táctil
   const t=document.getElementById("tip"); if(!t||!tile) return;
   const k=tile.dataset.sym, i=ELEMENTS[k]; if(!i) return;
-  const pr=priceOf(k), precio=pr>0?` · <span style="color:var(--soft)">${mon(pr)}</span>`:"";
+  const precio="";
   const desc=SYMDESC[k]?`<br><span style="color:var(--soft)">${SYMDESC[k]}</span>`:"";
   t.innerHTML=`<b>${i.icon} ${i.name}</b>${precio}${desc}`;
   t.style.display="block";
