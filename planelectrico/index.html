@@ -1000,6 +1000,17 @@ function finishDraft(){
   render();
 }
 
+// Un solo render por frame de pantalla. Los handlers de MOVIMIENTO piden un frame
+// en vez de renderizar de una: con 120 Hz de puntero en tablet se renderizaba el
+// doble de lo necesario, y en Android de gama baja el arrastre perdía frames.
+// Las acciones discretas (crear, borrar, cambiar propiedad) siguen llamando render() directo.
+let framePedido=0, framePanelPend=false;
+function pedirRender(skipPanel){
+  if(!skipPanel) framePanelPend=true;                 // si alguien pidió panel, el frame lo reconstruye
+  if(framePedido) return;                             // ya hay un frame en camino
+  framePedido=requestAnimationFrame(()=>{ framePedido=0;
+    const sp=!framePanelPend; framePanelPend=false; render(sp); });
+}
 function render(skipPanel){
   while(svg.firstChild) svg.removeChild(svg.firstChild);
   drawGrid();
@@ -1295,7 +1306,8 @@ function render(skipPanel){
   if(hoverSnap){ svg.appendChild(el("circle",{cx:hoverSnap.x,cy:hoverSnap.y,r:8/scale,
     fill:"none",stroke:"var(--accent)","stroke-width":2/scale,style:"pointer-events:none"})); }
 
-  renderFloorbar();
+  // (aquí se llamaba renderFloorbar(), que nunca existió: lanzaba ReferenceError y
+  //  abortaba render() dejando muertas las 40 líneas siguientes. Ver el cierre kaizen.)
   // guías inteligentes magenta (solo mientras se arrastra)
   if(smartGuides.length){ const gg=el("g",{style:"pointer-events:none"});
     smartGuides.forEach(s=>{ if(s.v!=null) gg.appendChild(el("line",{x1:s.v,y1:vb.y-vb.h,x2:s.v,y2:vb.y+vb.h*2,
@@ -1713,7 +1725,7 @@ svg.addEventListener("pointermove",ev=>{
     const wy=pinch.vb0.y+(pinch.my-r.top)/r.height*pinch.vb0.h;
     vb.w=w2; vb.h=h2;
     vb.x=wx-(mx-r.left)/r.width*w2; vb.y=wy-(my-r.top)/r.height*h2;
-    updateScale(); render(true); ev.stopPropagation(); ev.preventDefault();
+    updateScale(); pedirRender(true); ev.stopPropagation(); ev.preventDefault();
   }
 },{capture:true,passive:false});
 function endTouch(ev){
@@ -2120,22 +2132,22 @@ function startSelect(ev,w){
 
 function onMove(ev){
   const w=toWorld(ev);
-  if(calibMode){ calibMode.cursor=w; if(calibMode.p1) render(true); return; }
+  if(calibMode){ calibMode.cursor=w; if(calibMode.p1) pedirRender(true); return; }
   if(action){
     if(action.type==="pan"){ const r=svg.getBoundingClientRect();
       vb.x=action.ox-(ev.clientX-action.sx)/r.width*vb.w;
-      vb.y=action.oy-(ev.clientY-action.sy)/r.height*vb.h; applyViewBox(); render(true); return; }
-    if(action.type==="marquee"){ action.x1=w.x; action.y1=w.y; render(true); return; }
+      vb.y=action.oy-(ev.clientY-action.sy)/r.height*vb.h; applyViewBox(); pedirRender(true); return; }
+    if(action.type==="marquee"){ action.x1=w.x; action.y1=w.y; pedirRender(true); return; }
     if(action.type==="ohandle"){ const o=action.o; const wl=doc.walls.find(x=>x.id===o.wallId);
       if(wl){ const L=wallLen(wl); const pr=projectOnWall(wl,w); const pd=pr.t*L;
         let a=o.d-o.width/2, b=o.d+o.width/2;
         if(action.end===0) a=Math.min(pd,b-20); else b=Math.max(pd,a+20);
         a=Math.max(2,a); b=Math.min(L-2,b);
-        o.width=Math.round(b-a); o.d=(a+b)/2; action.moved=true; render(true); }
+        o.width=Math.round(b-a); o.d=(a+b)/2; action.moved=true; pedirRender(true); }
       return; }
     if(action.type==="omove"){ const o=action.o; const wl=doc.walls.find(x=>x.id===o.wallId);
       if(wl){ const L=wallLen(wl); const pr=projectOnWall(wl,w); const margin=o.width/2+5;
-        o.d=Math.max(margin,Math.min(pr.t*L,L-margin)); action.moved=true; render(true); }
+        o.d=Math.max(margin,Math.min(pr.t*L,L-margin)); action.moved=true; pedirRender(true); }
       return; }
     if(action.type==="moveSel"){ const dx=snapNum(w.x-action.sx), dy=snapNum(w.y-action.sy);
       action.nodes.forEach(n=>{ doc.nodes[n.id]={x:n.x+dx,y:n.y+dy}; });
@@ -2145,41 +2157,41 @@ function onMove(ev){
       (action.phs||[]).forEach(o=>{ o.p.x=o.x+dx; o.p.y=o.y+dy; });
       (action.sts||[]).forEach(o=>{ o.st.x=o.x+dx; o.st.y=o.y+dy; });
       (action.txs||[]).forEach(o=>{ o.t.x=o.x+dx; o.t.y=o.y+dy; });
-      action.moved=true; render(true); return; }
+      action.moved=true; pedirRender(true); return; }
     if(action.type==="chandle"){ const wl=action.wl; const A=N(wl.a),B=N(wl.b);
       const mx=(A.x+B.x)/2,my=(A.y+B.y)/2;
       const Lc=Math.hypot(B.x-A.x,B.y-A.y)||1;
       const nx=-(B.y-A.y)/Lc, ny=(B.x-A.x)/Lc;
       let off=((w.x-mx)*nx+(w.y-my)*ny)*2; // el pico visible está a curve/2
       if(Math.abs(off)<10) off=0; // imán a "recta"
-      wl.curve=Math.round(off); action.moved=true; render(true); return; }
+      wl.curve=Math.round(off); action.moved=true; pedirRender(true); return; }
     if(action.type==="stairmove"){ action.st.x=snapNum(w.x-action.dx);
-      action.st.y=snapNum(w.y-action.dy); action.moved=true; render(true); return; }
+      action.st.y=snapNum(w.y-action.dy); action.moved=true; pedirRender(true); return; }
     if(action.type==="photomove"){ action.ph.x=snapNum(w.x-action.dx);
-      action.ph.y=snapNum(w.y-action.dy); action.moved=true; render(true); return; }
+      action.ph.y=snapNum(w.y-action.dy); action.moved=true; pedirRender(true); return; }
     if(action.type==="node"){ const sp={x:snapNum(w.x),y:snapNum(w.y)};
-      doc.nodes[action.id]={x:sp.x,y:sp.y}; action.moved=true; render(true); return; }
+      doc.nodes[action.id]={x:sp.x,y:sp.y}; action.moved=true; pedirRender(true); return; }
     if(action.type==="wall"){ const dx=w.x-action.sx, dy=w.y-action.sy; action.moved=true;
       doc.nodes[action.wall.a]={x:snapNum(action.a0.x+dx),y:snapNum(action.a0.y+dy)};
-      doc.nodes[action.wall.b]={x:snapNum(action.b0.x+dx),y:snapNum(action.b0.y+dy)}; render(true); return; }
+      doc.nodes[action.wall.b]={x:snapNum(action.b0.x+dx),y:snapNum(action.b0.y+dy)}; pedirRender(true); return; }
     if(action.type==="element"){ const e=doc.elements.find(x=>x.id===action.id);
       const rx=w.x-action.dx, ry=w.y-action.dy;
-      e.x=snapNum(rx); e.y=snapNum(ry); aplicarGuias(e,rx,ry); action.moved=true; render(true); return; }
+      e.x=snapNum(rx); e.y=snapNum(ry); aplicarGuias(e,rx,ry); action.moved=true; pedirRender(true); return; }
     if(action.type==="label"){ const l=doc.labels.find(x=>x.id===action.id);
       const rx=w.x-action.dx, ry=w.y-action.dy;
-      l.x=snapNum(rx); l.y=snapNum(ry); aplicarGuias(l,rx,ry); action.moved=true; render(true); return; }
+      l.x=snapNum(rx); l.y=snapNum(ry); aplicarGuias(l,rx,ry); action.moved=true; pedirRender(true); return; }
     if(action.type==="text"){ const tx=doc.texts.find(x=>x.id===action.id);
       const rx=w.x-action.dx, ry=w.y-action.dy;
-      tx.x=snapNum(rx); tx.y=snapNum(ry); aplicarGuias(tx,rx,ry); action.moved=true; render(true); return; }
+      tx.x=snapNum(rx); tx.y=snapNum(ry); aplicarGuias(tx,rx,ry); action.moved=true; pedirRender(true); return; }
     if(action.type==="txresize"){ const tx=action.tx; const d=Math.hypot(w.x-tx.x,w.y-tx.y);
-      tx.size=Math.max(6,Math.round(action.size0*d/action.d0)); action.moved=true; render(true); return; }
+      tx.size=Math.max(6,Math.round(action.size0*d/action.d0)); action.moved=true; pedirRender(true); return; }
   }
   if(draft){
     if(draft.type==="curve"){ const sp2=snapWorld(w,draft.startNode); let bb=applyLock(draft.start,sp2,ev.shiftKey);
-      if(!sp2.node) bb=refSnapPoint(draft.start,bb); draft.cursor=bb; render(); return; }
-    if(draft.type==="route"){ draft.cursor=snapRoutePoint(w); render(); return; }
+      if(!sp2.node) bb=refSnapPoint(draft.start,bb); draft.cursor=bb; pedirRender(); return; }
+    if(draft.type==="route"){ draft.cursor=snapRoutePoint(w); pedirRender(); return; }
     if(draft.type==="opening"){ const wl=doc.walls.find(x=>x.id===draft.wallId);
-      if(wl){ const pr=projectOnWall(wl,w); draft.d1=pr.t*wallLen(wl); } render(); return; }
+      if(wl){ const pr=projectOnWall(wl,w); draft.d1=pr.t*wallLen(wl); } pedirRender(); return; }
     if(draft.type==="wall"){
       // Paridad con commitTramoPared: mismo imán (sin excluir el ancla propia) y misma
       // precedencia — el nodo imantado GANA sobre 45°/ref. El preview muestra lo que se creará;
@@ -2189,9 +2201,9 @@ function onMove(ev){
       if(spw.node){ bb={x:spw.x,y:spw.y}; }
       else { bb=applyLock(draft.start,spw,ev.shiftKey); bb=refSnapPoint(draft.start,bb); }
       draft.refMatch=!!bb.refMatch; draft.cursor=bb;
-      render(true); return; } // preview liviano: sin reconstruir panel/ctxbar en cada move (paridad con los drags)
+      pedirRender(true); return; } // preview liviano: sin reconstruir panel/ctxbar en cada move (paridad con los drags)
     const sp=snapWorld(w, draft.startNode);
-    draft.cursor={x:sp.x,y:sp.y}; render(); return; }
+    draft.cursor={x:sp.x,y:sp.y}; pedirRender(); return; }
   // hover snap feedback
   if(tool==="wall"||tool==="room"||tool==="dim"){ snapWorld(w,null); }
 }
