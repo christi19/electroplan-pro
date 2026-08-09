@@ -702,14 +702,37 @@ function cableEntreDosM(a,b){
 function snapNum(v){ return settings.snap? Math.round(v/settings.gridSize)*settings.gridSize : v; }
 function el(tag,attrs){ const e=document.createElementNS("http://www.w3.org/2000/svg",tag);
   for(const k in attrs) e.setAttribute(k,attrs[k]); return e; }
-function findOrCreateNode(p){
-  for(const id in doc.nodes){ if(dist(doc.nodes[id],p) < 12/scale) return id; }
+// Reutiliza un ancla existente si el punto cae encima; si no, crea una nueva.
+// El filtro por PISO no es un detalle: antes se recorría doc.nodes entero y una
+// pared nueva de la planta alta se colgaba de una esquina de la planta baja —
+// después, mover esa esquina deformaba el piso de abajo sin que nada lo dijera.
+// tol se puede apretar: con una medida tecleada, absorber el extremo sería
+// contradecir el número que el usuario acaba de escribir.
+function findOrCreateNode(p,opts){
+  const tol=(opts&&opts.tol!=null)?opts.tol:12/scale;
+  const okN=new Set(); doc.walls.forEach(w=>{ if(enPiso(w)){ okN.add(w.a); okN.add(w.b); } });
+  if(draft&&draft.startNode) okN.add(draft.startNode);
+  if(draft&&draft.firstNode) okN.add(draft.firstNode);
+  if(tol>0) for(const id of okN){ const n=doc.nodes[id]; if(n&&dist(n,p)<tol) return id; }
   const id=uid("n"); doc.nodes[id]={x:p.x,y:p.y}; return id;
 }
 function nearestNode(p){ let best=null,bd=14/scale;
   const okN=new Set(); doc.walls.forEach(w=>{ if(enPiso(w)){ okN.add(w.a); okN.add(w.b); } });
   if(draft&&draft.startNode) okN.add(draft.startNode);
   for(const id in doc.nodes){ if(!okN.has(id))continue; const d=dist(doc.nodes[id],p); if(d<bd){bd=d;best=id;} } return best; }
+// ¿render() DIBUJA esta ancla? Es una sola regla y la comparten el render y el
+// hit-test. Antes cada uno tenía la suya: el LOD escondía el ancla de las paredes
+// cortas pero el agarre seguía ahí, así que tocar un tabique lejano no lo
+// seleccionaba — lo deformaba, sin nada en pantalla que explicara por qué.
+// nodoL es opcional: el render ya trae el mapa calculado y no lo recalcula.
+function anclaDibujada(id,nodoL){
+  if(vistaCliente) return false;                                  // vista cliente: no hay anclas
+  if(draft&&(id===draft.startNode||id===draft.firstNode)) return true;
+  if(draft&&draft.type==="wall") return true;                     // trazando se ven todas
+  let L=nodoL?(nodoL[id]||0):0;
+  if(!nodoL) doc.walls.forEach(w=>{ if(enPiso(w)&&(w.a===id||w.b===id)){ const Lw=wallLen(w); if(Lw>L)L=Lw; } });
+  return L*scale>=48;                                             // menos que un dedo en pantalla: no se dibuja
+}
 const FONTS={sistema:"system-ui,-apple-system,'Segoe UI',sans-serif",serif:"Georgia,'Times New Roman',serif",mono:"'Cascadia Code',Consolas,monospace",redonda:"'Trebuchet MS','Segoe UI',sans-serif",manuscrita:"'Comic Sans MS','Segoe Print',cursive"};
 const FONT_NOM={sistema:"Sistema",serif:"Serif",mono:"Mono",redonda:"Redonda",manuscrita:"Manuscrita"};
 function grosorDe(w){ return (w&&w.t!=null)?w.t:settings.wallT; } // grosor por pared (w.t) con fallback al global settings.wallT
@@ -980,20 +1003,47 @@ function actualizarSheetHint(){
 function toggleSel(t,id){ const i=selection.findIndex(s=>s.type===t&&s.id===id);
   if(i>=0) selection.splice(i,1); else selection.push({type:t,id});
   selected=selection.length===1?selection[0]:null; }
+// Una capa apagada (🙈) o bloqueada (🔒) NO se toca. applyLayers() ya le corta los
+// clics al SVG, pero los hit-test geométricos (nearestNode, nearestWall) no pasan
+// por el DOM y se saltaban la regla: con Estructura bloqueada las esquinas se
+// seguían agarrando y se podían clavar puertas en una pared protegida.
+function capaViva(k){ return settings["layer_"+k]!==false&&settings["lock_"+k]!==true; }
 function marqueeSelect(r){
   const inR=p=>p&&p.x>=r.x1&&p.x<=r.x2&&p.y>=r.y1&&p.y<=r.y2;
-  // la marquesina respeta las capas: lo oculto o bloqueado (🔒) no se selecciona
-  const selOK=k=>settings["layer_"+k]!==false&&settings["lock_"+k]!==true;
+  const selOK=capaViva;
   const out=[];
+  // ¿el segmento A-B toca la caja? Recorte de Liang-Barsky. Antes la pared solo
+  // entraba si la caja contenía un extremo o el punto medio: una pared larga que
+  // la cruzaba de lado a lado se quedaba afuera, que es justo el caso de encerrar
+  // un cuarto para moverlo.
+  const cortaCaja=(A,B)=>{
+    if(inR(A)||inR(B)) return true;
+    const dx=B.x-A.x, dy=B.y-A.y;
+    const p=[-dx,dx,-dy,dy], q=[A.x-r.x1,r.x2-A.x,A.y-r.y1,r.y2-A.y];
+    let t0=0,t1=1;
+    for(let i=0;i<4;i++){
+      if(p[i]===0){ if(q[i]<0) return false; continue; }
+      const t=q[i]/p[i];
+      if(p[i]<0){ if(t>t1) return false; if(t>t0) t0=t; }
+      else { if(t<t0) return false; if(t<t1) t1=t; } }
+    return true; };
+  // Una pared recta son 2 puntos; una curva, su muestreo: el mismo criterio sirve.
+  const paredTocaCaja=w=>{ const pts=wallPts(w,w.curve?16:1);
+    for(let i=1;i<pts.length;i++) if(cortaCaja(pts[i-1],pts[i])) return true;
+    return false; };
   if(selOK("structure")) doc.walls.forEach(w=>{ if(!enPiso(w))return; const a=N(w.a),b=N(w.b);
-    if(a&&b&&(inR(a)||inR(b)||inR(wallMid(w)))) out.push({type:"wall",id:w.id}); });
+    if(a&&b&&paredTocaCaja(w)) out.push({type:"wall",id:w.id}); });
   if(selOK("electrical")) doc.elements.forEach(e=>{ if(enPiso(e)&&inR(e)) out.push({type:"element",id:e.id}); });
   if(selOK("labels")){ doc.labels.forEach(l=>{ if(enPiso(l)&&inR(l)) out.push({type:"label",id:l.id}); });
   (doc.texts||[]).forEach(t=>{ if(enPiso(t)&&inR(t)) out.push({type:"text",id:t.id}); });
   doc.dims.forEach(d=>{ if(enPiso(d)&&inR(d.a)&&inR(d.b)) out.push({type:"dim",id:d.id}); }); }
-  doc.routes.forEach(r=>{ if(enPiso(r)&&r.pts&&r.pts.some(inR)) out.push({type:"route",id:r.id}); });
-  (doc.photos||[]).forEach(ph=>{ if(enPiso(ph)&&inR(ph)) out.push({type:"photo",id:ph.id}); });
-  (doc.stairs||[]).forEach(st=>{ if(enPiso(st)&&(inR(st)||inR(stairP(st,st.largo/2,0)))) out.push({type:"stair",id:st.id}); });
+  // Cada uno con la capa donde se DIBUJA: tubos en eléctrica, fotos en etiquetas,
+  // escaleras en estructura. Estos tres barridos se habían quedado fuera de selOK,
+  // así que el candado protegía la pared y el punto eléctrico pero no el tubo que
+  // corre al lado — y Suprimir se los llevaba sin un aviso.
+  if(selOK("electrical")) doc.routes.forEach(r=>{ if(enPiso(r)&&r.pts&&r.pts.some(inR)) out.push({type:"route",id:r.id}); });
+  if(selOK("labels")) (doc.photos||[]).forEach(ph=>{ if(enPiso(ph)&&inR(ph)) out.push({type:"photo",id:ph.id}); });
+  if(selOK("structure")) (doc.stairs||[]).forEach(st=>{ if(enPiso(st)&&(inR(st)||inR(stairP(st,st.largo/2,0)))) out.push({type:"stair",id:st.id}); });
   return out;
 }
 function beginMoveSel(w){
@@ -1011,9 +1061,14 @@ function beginMoveSel(w){
   const rts=selection.filter(s=>s.type==="route")
     .map(s=>doc.routes.find(r=>r.id===s.id)).filter(Boolean)
     .map(r=>({r,pts0:r.pts.map(p=>({x:p.x,y:p.y}))}));
+  // Las cotas SÍ entran en la marquesina, pero el grupo se movía sin ellas y
+  // quedaban plantadas midiendo el aire donde antes estaba la pared.
+  const dms=selection.filter(s=>s.type==="dim")
+    .map(s=>doc.dims.find(d=>d.id===s.id)).filter(Boolean)
+    .map(d=>({d,a0:{x:d.a.x,y:d.a.y},b0:{x:d.b.x,y:d.b.y}}));
   action={type:"moveSel",sx:w.x,sy:w.y,moved:false,
     nodes:[...nodeIds].map(id=>({id,x:N(id).x,y:N(id).y})),
-    els:els.map(e=>({e,x:e.x,y:e.y})), lbs:lbs.map(l=>({l,x:l.x,y:l.y})), rts, phs, sts, txs};
+    els:els.map(e=>({e,x:e.x,y:e.y})), lbs:lbs.map(l=>({l,x:l.x,y:l.y})), rts, phs, sts, txs, dms};
 }
 function finishDraft(){
   if(draft&&draft.type==="wall"&&draft.created&&draft.created.length){
@@ -1158,10 +1213,8 @@ function render(skipPanel){
   if(draft&&draft.startNode) nodosPiso.add(draft.startNode);
   // Mientras se traza una pared, TODAS las anclas del piso se ven: el imán (nearestNode)
   // apunta a cualquiera de ellas y un imán invisible desconcierta; el LOD rige al terminar.
-  const trazandoPared=!!(draft&&draft.type==="wall");
-  if(!vistaCliente) Object.keys(doc.nodes).forEach(id=>{ if(!nodosPiso.has(id))return;
-    const esDraft=draft&&(id===draft.startNode||id===draft.firstNode);
-    if(!esDraft&&!trazandoPared&&(nodoL[id]||0)*scale<48) return; // LOD: sin espacio no hay ancla
+  Object.keys(doc.nodes).forEach(id=>{ if(!nodosPiso.has(id))return;
+    if(!anclaDibujada(id,nodoL)) return;                          // misma regla que usa el hit-test
     const n=doc.nodes[id];
     // Ancla estilo Illustrator: radio constante en pantalla (5px) y borde de 2px reales.
     // OJO: con vector-effect el stroke-width se lee en px de PANTALLA — nunca dividirlo
@@ -1210,8 +1263,12 @@ function render(skipPanel){
     gOpen.appendChild(el("circle",{cx,cy,r:Math.max(12/scale,hw*0.6),fill:"transparent",
       stroke:isSel?"var(--sel)":"transparent","stroke-width":2/scale,
       "data-id":o.id,"data-kind":"opening",style:"cursor:move"}));
-    // agarraderas de estiramiento en los extremos
-    if(isSel){ [[x1,y1,0],[x2,y2,1]].forEach(([hx,hy,end])=>{
+    // Agarraderas de estirar, en los extremos. Solo si la apertura mide lo
+    // suficiente EN PANTALLA para que quede zona de mover en el medio: las dos
+    // agarraderas son de 14 px y se comían el centro entero, así que alejado la
+    // puerta quedaba presa — seleccionarla era perder la forma de moverla, y el
+    // arrastre la estiraba (90 cm → 245). Mismo criterio que el LOD de las anclas.
+    if(isSel&&o.width*scale>=58){ [[x1,y1,0],[x2,y2,1]].forEach(([hx,hy,end])=>{
       gOpen.appendChild(el("rect",{x:hx-7/scale,y:hy-7/scale,width:14/scale,height:14/scale,
         fill:"var(--sel)",stroke:"var(--panel)","stroke-width":1.5/scale,
         "data-id":o.id,"data-kind":"ohandle","data-end":end,style:"cursor:ew-resize"})); }); }
@@ -1347,7 +1404,9 @@ function render(skipPanel){
     svg.appendChild(gg); }
   // barra flotante de selección (N sel · duplicar · borrar · deseleccionar)
   const sb2=document.getElementById("selbar");
-  if(sb2){ if(selection.length&&tool==="select"&&!linkMode){
+  // También con el Marco: es LA herramienta de seleccionar varios, y dejaba la
+  // selección sin un solo botón para actuar sobre ella.
+  if(sb2){ if(selection.length&&(tool==="select"||tool==="marquee")&&!linkMode){
       sb2.innerHTML=`<span style="align-self:center;font-family:var(--mono);font-size:11px;color:var(--soft);padding:0 8px">${selection.length} sel.</span>`+
         (selection.length===1?`<button title="Copiar formato a otros objetos (pincel)" id="sb_fmt">🖌</button>`:"")+
         `<button title="Duplicar (Ctrl+D)" id="sb_dup">⧉</button>`+
@@ -1383,7 +1442,8 @@ function render(skipPanel){
 function renderCtxBar(){
   const cb=document.getElementById("ctxbar"); if(!cb) return;
   const mobile=document.body.classList.contains("mobile");
-  if(mobile||!selection.length||tool!=="select"||linkMode){ cb.style.display="none"; return; }
+  const herrSel=(tool==="select"||tool==="marquee"); // el Marco también selecciona: sus acciones se ven
+  if(mobile||!selection.length||!herrSel||linkMode){ cb.style.display="none"; return; }
   const $=id=>document.getElementById(id);
   const G=(lab,ctrl)=>`<span class="cxg"><label>${lab}</label>${ctrl}</span>`;
   const head=(txt)=>`<span class="cxg" style="font-weight:700;color:var(--ink)">${txt}</span>`;
@@ -2051,7 +2111,15 @@ function onDown(ev){
     linkMode=null; updateHint(); render(); return; }
   if(tool==="pan" || ev.button===1 || ((tool==="select"||tool==="marquee")&&ev.shiftKey)){ action={type:"pan",sx:ev.clientX,sy:ev.clientY,ox:vb.x,oy:vb.y}; return; }
 
-  if(tool==="marquee"){ action={type:"marquee",x0:w.x,y0:w.y,x1:w.x,y1:w.y}; render(); return; } // Marco: siempre selección por caja
+  if(tool==="marquee"){
+    // Apretar SOBRE algo que ya está seleccionado mueve el grupo; en cualquier
+    // otro lado abre la caja. Antes todo arrastre abría caja, así que el primer
+    // intento de mover lo que se acababa de encerrar BORRABA la selección entera
+    // — y con la barra de acciones ya visible eso es una trampa.
+    const h=ev.target.closest&&ev.target.closest("[data-kind]");
+    const hk=h&&h.getAttribute("data-kind"), hid=h&&h.getAttribute("data-id");
+    if(selection.length&&hk&&hid&&isSelected(hk,hid)){ beginMoveSel(w); return; }
+    action={type:"marquee",x0:w.x,y0:w.y,x1:w.x,y1:w.y}; render(); return; }
   if(tool==="select"){ return startSelect(ev,w); }
 
   if(tool==="wall"){
@@ -2079,7 +2147,9 @@ function onDown(ev){
   if(tool==="room"){ const sp=snapWorld(w,null); draft={type:"room",start:{x:sp.x,y:sp.y},cursor:{x:sp.x,y:sp.y}}; return; }
   if(tool==="dim"){ const sp=snapWorld(w,null); draft={type:"dim",start:{x:sp.x,y:sp.y},cursor:{x:sp.x,y:sp.y}}; return; }
 
-  if(tool==="door"||tool==="window"){ const nw=nearestWall(w,40/scale);
+  if(tool==="door"||tool==="window"){
+    if(!capaViva("structure")){ avisar("🔒 La capa de paredes está bloqueada o apagada — desbloqueala para poner puertas y ventanas."); return; }
+    const nw=nearestWall(w,40/scale);
     if(nw){ const d0=nw.pr.t*wallLen(nw.w);
       draft={type:"opening",kind:tool==="door"?"door":"window",wallId:nw.w.id,d0:d0,d1:d0};
       render(); }
@@ -2124,6 +2194,13 @@ function colocarElemento(cat,sp){
   return e;
 }
 
+// Lo que el usuario ve como un objeto suelto DIBUJADO ENCIMA de la pared. Si el
+// dedo cae sobre uno de estos, gana él: una toma puesta sobre una esquina se toca
+// en su propio dibujo, no se convierte en un tirador de esa esquina. El ancla solo
+// le gana a la pared y al vacío. Antes el ancla iba primero y una toma a menos de
+// 14 px de un vértice no se podía seleccionar de ninguna forma — y si el vértice
+// le quedaba justo debajo, ningún zoom la rescataba.
+const OBJ_ENCIMA={element:1,opening:1,label:1,text:1,photo:1,stair:1,route:1,dim:1};
 function startSelect(ev,w){
   const tgt=ev.target;
   // modo pincel (cuentagotas): aplicar el formato copiado a objetos del mismo tipo
@@ -2146,17 +2223,30 @@ function startSelect(ev,w){
     const id=tgt.getAttribute("data-id"); const tx=doc.texts.find(x=>x.id===id);
     if(tx){ const wpt=toWorld(ev); const d0=Math.max(1,Math.hypot(wpt.x-tx.x,wpt.y-tx.y));
       action={type:"txresize",tx,size0:tx.size||40,d0,moved:false}; return; } }
-  const nn=nearestNode(w);
-  if(nn){ action={type:"node",id:nn,moved:false}; return; }
   const t=ev.target;
   const host=t.closest&&t.closest("[data-kind]");
-  const k=host&&host.getAttribute("data-kind"), id=host&&host.getAttribute("data-id");
+  let k=host&&host.getAttribute("data-kind"), id=host&&host.getAttribute("data-id");
   const ctrl=ev.ctrlKey||ev.metaKey;
+  // El ancla solo agarra si el usuario la puede VER y si su capa está viva.
+  // anclaDibujada() es la misma regla que usa render(): así nunca hay un agarre
+  // donde no hay nada pintado, ni sobre una capa que el usuario mandó a bloquear.
+  const nn=capaViva("structure")?nearestNode(w):null;
+  const ancla=(nn&&anclaDibujada(nn)&&!(k&&id&&OBJ_ENCIMA[k]))?nn:null;
+  // Ctrl+clic sobre una esquina: el ancla no es un objeto seleccionable, así que
+  // lo que el usuario quiere sumar a la selección es la pared que pasa por ahí.
+  if(ctrl&&(!k||!id||k==="node")){ const nw=nearestWall(w,22/scale); if(nw){ k="wall"; id=nw.w.id; } }
+  if(ctrl&&k&&id){ toggleSel(k,id); render(); return; }
+  // Con varios objetos seleccionados, tocar CUALQUIERA de ellos mueve el grupo
+  // entero — sus esquinas incluidas. Antes el agarre de ancla se adelantaba a esta
+  // guarda y arrastrar un cuarto por una esquina lo DEFORMABA en vez de moverlo.
+  if(selection.length>1&&((k&&id&&isSelected(k,id))
+      ||(ancla&&doc.walls.some(wl=>(wl.a===ancla||wl.b===ancla)&&isSelected("wall",wl.id))))){
+    beginMoveSel(w); return; }
+  // dx/dy = dónde agarró el dedo DENTRO del ancla. Sin esto el nodo saltaba al
+  // cursor en el primer movimiento: era el único objeto arrastrable del editor
+  // que no respetaba el punto de agarre.
+  if(ancla){ const n0=N(ancla); action={type:"node",id:ancla,moved:false,dx:w.x-n0.x,dy:w.y-n0.y}; return; }
   if(k&&id){
-    // Ctrl+clic: añadir/quitar de la selección
-    if(ctrl){ toggleSel(k,id); render(); return; }
-    // clic sobre algo YA seleccionado en selección múltiple → mover todo el grupo
-    if(selection.length>1&&isSelected(k,id)){ beginMoveSel(w); return; }
     // selección simple + arrastre normal
     if(k==="wall"){ setSel([{type:"wall",id}]); const wl=doc.walls.find(x=>x.id===id);
       action={type:"wall",id,sx:w.x,sy:w.y,a0:{...N(wl.a)},b0:{...N(wl.b)},wall:wl,moved:false}; render(); return; }
@@ -2168,7 +2258,13 @@ function startSelect(ev,w){
       action={type:"text",id,dx:w.x-tx.x,dy:w.y-tx.y,moved:false}; render(); return; }
     if(k==="opening"){ setSel([{type:"opening",id}]);
       const o=doc.openings.find(x=>x.id===id);
-      action=o?{type:"omove",o,moved:false}:null; render(); return; }
+      // off = a qué distancia del centro de la puerta cayó el dedo, medida A LO
+      // LARGO de la pared. Sin esto la puerta saltaba al puntero en el primer
+      // movimiento, igual que hacía el ancla.
+      let off=0;
+      if(o){ const wl=doc.walls.find(x=>x.id===o.wallId);
+        if(wl){ const L=wallLen(wl); off=projectOnWall(wl,w).t*L-(o.d!=null?o.d:L/2); } }
+      action=o?{type:"omove",o,off,moved:false}:null; render(); return; }
     if(k==="route"){ setSel([{type:"route",id}]); render(); return; }
     if(k==="stair"){ setSel([{type:"stair",id}]); const st=doc.stairs.find(x=>x.id===id);
       action=st?{type:"stairmove",st,dx:w.x-st.x,dy:w.y-st.y,moved:false}:null; render(); return; }
@@ -2197,7 +2293,7 @@ function onMove(ev){
       return; }
     if(action.type==="omove"){ const o=action.o; const wl=doc.walls.find(x=>x.id===o.wallId);
       if(wl){ const L=wallLen(wl); const pr=projectOnWall(wl,w); const margin=o.width/2+5;
-        o.d=Math.max(margin,Math.min(pr.t*L,L-margin)); action.moved=true; pedirRender(true); }
+        o.d=Math.max(margin,Math.min(pr.t*L-(action.off||0),L-margin)); action.moved=true; pedirRender(true); }
       return; }
     if(action.type==="moveSel"){ const dx=snapNum(w.x-action.sx), dy=snapNum(w.y-action.sy);
       action.nodes.forEach(n=>{ doc.nodes[n.id]={x:n.x+dx,y:n.y+dy}; });
@@ -2207,6 +2303,7 @@ function onMove(ev){
       (action.phs||[]).forEach(o=>{ o.p.x=o.x+dx; o.p.y=o.y+dy; });
       (action.sts||[]).forEach(o=>{ o.st.x=o.x+dx; o.st.y=o.y+dy; });
       (action.txs||[]).forEach(o=>{ o.t.x=o.x+dx; o.t.y=o.y+dy; });
+      (action.dms||[]).forEach(o=>{ o.d.a={x:o.a0.x+dx,y:o.a0.y+dy}; o.d.b={x:o.b0.x+dx,y:o.b0.y+dy}; });
       action.moved=true; pedirRender(true); return; }
     if(action.type==="chandle"){ const wl=action.wl; const A=N(wl.a),B=N(wl.b);
       const mx=(A.x+B.x)/2,my=(A.y+B.y)/2;
@@ -2219,11 +2316,16 @@ function onMove(ev){
       action.st.y=snapNum(w.y-action.dy); action.moved=true; pedirRender(true); return; }
     if(action.type==="photomove"){ action.ph.x=snapNum(w.x-action.dx);
       action.ph.y=snapNum(w.y-action.dy); action.moved=true; pedirRender(true); return; }
-    if(action.type==="node"){ const sp={x:snapNum(w.x),y:snapNum(w.y)};
-      doc.nodes[action.id]={x:sp.x,y:sp.y}; action.moved=true; pedirRender(true); return; }
+    if(action.type==="node"){ const rx=w.x-(action.dx||0), ry=w.y-(action.dy||0);
+      doc.nodes[action.id]={x:snapNum(rx),y:snapNum(ry)}; action.moved=true; pedirRender(true); return; }
     if(action.type==="wall"){ const dx=w.x-action.sx, dy=w.y-action.sy; action.moved=true;
-      doc.nodes[action.wall.a]={x:snapNum(action.a0.x+dx),y:snapNum(action.a0.y+dy)};
-      doc.nodes[action.wall.b]={x:snapNum(action.b0.x+dx),y:snapNum(action.b0.y+dy)}; pedirRender(true); return; }
+      // La pared se mueve RÍGIDA. El imán se resuelve UNA vez (sobre el extremo A) y
+      // el MISMO desplazamiento va a los dos extremos. Antes se redondeaba cada
+      // extremo por su cuenta y la pared cambiaba de largo con solo moverla: una de
+      // 502 cm quedaba en 500. En un CAD, mover no puede medir distinto.
+      const ox=snapNum(action.a0.x+dx)-action.a0.x, oy=snapNum(action.a0.y+dy)-action.a0.y;
+      doc.nodes[action.wall.a]={x:action.a0.x+ox,y:action.a0.y+oy};
+      doc.nodes[action.wall.b]={x:action.b0.x+ox,y:action.b0.y+oy}; pedirRender(true); return; }
     if(action.type==="element"){ const e=doc.elements.find(x=>x.id===action.id);
       const rx=w.x-action.dx, ry=w.y-action.dy;
       e.x=snapNum(rx); e.y=snapNum(ry); aplicarGuias(e,rx,ry); action.moved=true; pedirRender(true); return; }
@@ -2292,7 +2394,12 @@ function commitTramoExacto(cm){
   const dir=applyLock(a,c,false);                  // respeta el candado de 45°
   const ang=Math.atan2(dir.y-a.y,dir.x-a.x);
   const b={x:a.x+Math.cos(ang)*cm,y:a.y+Math.sin(ang)*cm};
-  const an=draft.startNode, bn=findOrCreateNode(b), B=N(bn);
+  // Tolerancia de 1 cm y no la de 12 px: si el usuario escribió 1185, el extremo
+  // va a 1185. Antes el ancla vecina se lo tragaba —una casa de 12 m con el
+  // encuadre de fábrica convertía 11,85 m en 12,00 m— y la medida escrita, que es
+  // la promesa entera de esta herramienta, no valía nada. Con 1 cm, teclear el
+  // número justo sigue cerrando la figura sobre la esquina.
+  const an=draft.startNode, bn=findOrCreateNode(b,{tol:1}), B=N(bn);
   if(bn===an||!B) return false;
   const wid=uid("w");
   doc.walls.push({id:wid,a:an,b:bn,name:"",space:draft.space||"",material:"Ladrillo",piso:doc.pisoActivo});
@@ -3982,6 +4089,22 @@ function duplicateSelection(){ if(!selection.length) return;
   selection.filter(s=>s.type==="text").forEach(s=>{ const t=(doc.texts||[]).find(x=>x.id===s.id);
     if(t){ const id2=uid("tx"); doc.texts.push(Object.assign({},t,{id:id2,x:t.x+OFF,y:t.y+OFF}));
       newSel.push({type:"text",id:id2}); } });
+  // Tubos, cotas y fotos también se seleccionan y también se duplican. Sin esto,
+  // duplicar un cuarto entero devolvía las paredes sin su canalización ni sus
+  // medidas, y no avisaba de lo que había dejado atrás.
+  selection.filter(s=>s.type==="route").forEach(s=>{ const r=doc.routes.find(x=>x.id===s.id);
+    if(r){ const id2=uid("r"); doc.routes.push(Object.assign({},r,{id:id2,
+      pts:r.pts.map(p=>({x:p.x+OFF,y:p.y+OFF}))}));
+      newSel.push({type:"route",id:id2}); } });
+  selection.filter(s=>s.type==="dim").forEach(s=>{ const d=doc.dims.find(x=>x.id===s.id);
+    if(d){ const id2=uid("d"); doc.dims.push(Object.assign({},d,{id:id2,
+      a:{x:d.a.x+OFF,y:d.a.y+OFF}, b:{x:d.b.x+OFF,y:d.b.y+OFF}}));
+      newSel.push({type:"dim",id:id2}); } });
+  // La copia comparte el MISMO fotoId: duplicar no puede duplicar megabytes en
+  // IndexedDB. Por eso deleteSelected solo borra el blob si ya nadie lo mira.
+  selection.filter(s=>s.type==="photo").forEach(s=>{ const ph=doc.photos.find(x=>x.id===s.id);
+    if(ph){ const id2=uid("ph"); doc.photos.push(Object.assign({},ph,{id:id2,x:ph.x+OFF,y:ph.y+OFF}));
+      newSel.push({type:"photo",id:id2}); } });
   if(newSel.length){ setSel(newSel); addXP(5); pushHistory(); render(); } }
 
 function deleteSelected(){ if(!selection.length)return;
@@ -3993,8 +4116,11 @@ function deleteSelected(){ if(!selection.length)return;
     else if(s.type==="label") doc.labels=doc.labels.filter(x=>x.id!==s.id);
     else if(s.type==="dim") doc.dims=doc.dims.filter(x=>x.id!==s.id);
     else if(s.type==="route") doc.routes=doc.routes.filter(x=>x.id!==s.id);
-    else if(s.type==="photo"){ const ph=doc.photos.find(x=>x.id===s.id); if(ph&&ph.fotoId)fotoDel(ph.fotoId);
-      doc.photos=doc.photos.filter(x=>x.id!==s.id); }
+    else if(s.type==="photo"){ const ph=doc.photos.find(x=>x.id===s.id);
+      doc.photos=doc.photos.filter(x=>x.id!==s.id);
+      // El blob solo se borra si ya no queda ninguna marca mirándolo: las copias
+      // comparten fotoId, y borrar una no puede dejar a la otra sin imagen.
+      if(ph&&ph.fotoId&&!doc.photos.some(x=>x.fotoId===ph.fotoId)) fotoDel(ph.fotoId); }
     else if(s.type==="stair") doc.stairs=doc.stairs.filter(x=>x.id!==s.id);
   });
   doc.elements.forEach(sw=>{ if(sw.controla) sw.controla=sw.controla.filter(id=>doc.elements.some(x=>x.id===id)); });
