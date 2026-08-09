@@ -4230,7 +4230,24 @@ try{ if(window.ResizeObserver){
 // PWA: service worker SOLO en hosting propio (nunca en el visor de artifacts ni embebida en iframe)
 try{ if(window.parent===window && "serviceWorker" in navigator && location.protocol.indexOf("http")===0 &&
   !/claude|anthropic|usercontent|localhost/i.test(location.hostname)){
-  navigator.serviceWorker.register("sw.js").catch(function(){}); } }catch(e){}
+  // Registrar NO alcanza. El caché es cache-first: al publicar una versión nueva,
+  // el service worker nuevo se instala y activa, pero la pantalla YA se dibujó con
+  // el código viejo y nada la vuelve a cargar. El usuario se queda varado hasta
+  // que cierre la app del todo — y si la versión vieja está rota, la app se siente
+  // MUERTA: el dedo toca el lienzo y no dibuja nada. Eso pasó de verdad en iPad.
+  var habiaSW=!!navigator.serviceWorker.controller;   // false = primera instalación
+  navigator.serviceWorker.register("sw.js").then(function(reg){
+    reg.update();                                     // buscar versión nueva en cada arranque
+    setInterval(function(){ try{ reg.update(); }catch(e2){} }, 3600000); // y una vez por hora si queda abierta
+  }).catch(function(){});
+  var yaRecargue=false;
+  navigator.serviceWorker.addEventListener("controllerchange",function(){
+    // En la PRIMERA instalación esto también dispara (clients.claim) y recargar ahí
+    // sería un parpadeo gratis: solo se recarga si ANTES ya mandaba otro SW.
+    if(!habiaSW||yaRecargue) return;
+    yaRecargue=true; location.reload();
+  });
+} }catch(e){}
 
 // PWA: ofrecer "Instalar en el celular" (Android dispara beforeinstallprompt; iOS se ofrece a mano)
 try{
