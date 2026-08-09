@@ -1845,12 +1845,23 @@ function snapWorld(p,fromNode){ // imán: nodo del piso activo > esquina del pis
   if(wBest){ hoverSnap={x:wBest.x,y:wBest.y}; return {x:wBest.x,y:wBest.y,ghost:true}; }
   hoverSnap=null; return {x:snapNum(p.x),y:snapNum(p.y)}; }
 
+// --- RECHAZO DE PALMA ---
+// Nadie dibuja en una tablet con la mano en el aire: se apoya el canto de la mano.
+// Ese contacto es ENORME comparado con un dedo, y PointerEvent lo dice en
+// ev.width/ev.height (px CSS). Sin este filtro la palma contaba como segundo dedo,
+// el editor creía que era un pellizco y mataba el trazo justo antes de fijarlo:
+// la pared RESPONDÍA en pantalla y no quedaba. Es el defecto que hacía inservible
+// el editor en iPad. Si el aparato no informa huella (0 o 1, lo normal en un mouse
+// o en navegadores viejos), no se rechaza nada: el filtro nunca estorba.
+const PALMA_PX=45;
+function esPalma(ev){ return ev.pointerType==="touch" && ((ev.width||0)>=PALMA_PX||(ev.height||0)>=PALMA_PX); }
 // --- gestos táctiles: dos dedos = pellizco (zoom) + mover lienzo ---
 const tPointers=new Map(); let pinch=null, wasPinch=false;
 let pinchT0=0, pinchMoved=false, pinchMidX=0, pinchMidY=0;
 let lastTapT=0,lastTapX=0,lastTapY=0,downX=0,downY=0,lpTimer=null;
 svg.addEventListener("pointerdown",ev=>{
   if(ev.pointerType!=="touch") return;
+  if(esPalma(ev)) return;                 // la mano apoyada no es un dedo: no cuenta para el pellizco
   tPointers.set(ev.pointerId,{x:ev.clientX,y:ev.clientY});
   try{ svg.setPointerCapture(ev.pointerId); }catch(_){} // asegura recibir SIEMPRE el pointerup
   if(tPointers.size===2){
@@ -2123,6 +2134,7 @@ svg.addEventListener("dblclick",async ev=>{
         pushHistory(); render(); } } } });
 
 function onDown(ev){
+  if(esPalma(ev)) return;                 // la mano apoyada no dibuja ni selecciona
   if(dragFicha&&dragFicha.activo) return; // un 2º dedo durante el drag de ficha no dibuja
   ev.preventDefault(); try{ svg.setPointerCapture&&svg.setPointerCapture(ev.pointerId); }catch(_){} // si falla no debe abortar la selección
   const w=toWorld(ev);
@@ -2324,6 +2336,7 @@ function startSelect(ev,w){
 }
 
 function onMove(ev){
+  if(esPalma(ev)) return;                 // el roce de la mano no arrastra nada
   const w=toWorld(ev);
   if(calibMode){ calibMode.cursor=w; if(calibMode.p1) pedirRender(true); return; }
   if(action){
@@ -2459,6 +2472,7 @@ function commitTramoExacto(cm){
 }
 
 function onUp(ev){
+  if(esPalma(ev)) return;                 // levantar la mano no fija ni cierra nada
   if(action){
     if(action.type==="marquee"){
       const r={x1:Math.min(action.x0,action.x1),y1:Math.min(action.y0,action.y1),
