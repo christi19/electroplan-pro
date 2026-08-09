@@ -241,9 +241,6 @@
   .symgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(66px,1fr));gap:6px;margin-top:8px;}
   .symgrid button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:7px 2px;min-height:52px;font-size:17px;}
   .symgrid small{font-size:9px;color:var(--soft);line-height:1.05;text-align:center;}
-  .floorbar{position:absolute;left:12px;bottom:12px;display:flex;gap:4px;background:var(--panel);
-    border:1px solid var(--line);border-radius:9px;padding:4px;z-index:5;box-shadow:0 4px 16px rgba(0,0,0,.2);}
-  .floorbar button{min-height:34px;padding:4px 10px;font-size:12px;width:auto;font-weight:600;}
   /* Hoja de impresión / PDF */
   #printsheet{display:none;}
   @media print{
@@ -289,8 +286,10 @@
   body.mobile #v3dctrl{position:fixed;top:calc(54px + env(safe-area-inset-top));left:50%;
     transform:translateX(-50%);z-index:38;background:var(--panel);border:1px solid var(--line);
     border-radius:10px;padding:4px;box-shadow:0 6px 20px rgba(0,0,0,.3);}
-  /* rail → dock horizontal inferior */
-  body.mobile .rail{position:fixed;left:0;right:0;bottom:calc(60px + env(safe-area-inset-bottom));
+  /* rail → dock horizontal inferior. Su bottom sigue a la hoja vía --peekh:
+     antes estaba cableado a 60px y cuando la hoja crecía a 112px con algo
+     seleccionado (.hassel), tapaba 52 de los 72px del carril de herramientas. */
+  body.mobile .rail{position:fixed;left:0;right:0;bottom:calc(var(--peekh,60px) + env(safe-area-inset-bottom));
     top:auto;width:100%;height:72px;flex-direction:row;overflow-x:auto;overflow-y:hidden;
     border-right:0;border-top:1px solid var(--line);z-index:35;padding:6px 8px;gap:6px;}
   body.mobile .rail::-webkit-scrollbar{display:none;}
@@ -302,8 +301,8 @@
     border-left:0;border-top:1px solid var(--line2);z-index:40;
     border-radius:16px 16px 0 0;box-shadow:0 -10px 34px rgba(0,0,0,.4);
     padding-bottom:env(safe-area-inset-bottom);}
-  body.mobile .side.mid{height:46vh;}
-  body.mobile .side.full{height:88vh;}
+  body.mobile .side.mid{height:46vh;height:46dvh;}
+  body.mobile .side.full{height:88vh;height:88dvh;}
   body.mobile .side .panelbody{display:none;}
   body.mobile .side.mid .panelbody,body.mobile .side.full .panelbody{display:block;}
   body.mobile .side .status{display:none;}
@@ -324,11 +323,10 @@
   body.mobile .tabs button{white-space:nowrap;flex:none;padding:0 16px;min-height:38px;}
   body.mobile .tabs::-webkit-scrollbar{display:none;}
   /* reubicaciones sobre el lienzo */
-  body.mobile .zoombar{bottom:calc(146px + env(safe-area-inset-bottom));right:8px;}
-  body.mobile .floorbar{top:calc(54px + env(safe-area-inset-top));bottom:auto;left:8px;}
+  body.mobile .zoombar{bottom:calc(var(--peekh,60px) + 86px + env(safe-area-inset-bottom));right:8px;}
   body.mobile #selbar{left:8px;top:8px;transform:none;
     max-width:calc(100% - 112px);flex-wrap:wrap;justify-content:flex-start;}
-  body.mobile .shapebar{top:auto;bottom:calc(146px + env(safe-area-inset-bottom));}
+  body.mobile .shapebar{top:auto;bottom:calc(var(--peekh,60px) + 86px + env(safe-area-inset-bottom));}
   body.mobile #selbar.shapebar{bottom:auto;}
   body.mobile .fabs{display:flex;position:absolute;right:8px;top:8px;gap:6px;z-index:6;}
   body.mobile .fabs>button{width:42px;height:42px;justify-content:center;background:var(--panel);font-size:17px;}
@@ -369,6 +367,16 @@
 /* La pestaña Artículos ya no muestra precios: se ve también embebida,
    porque ahí vive el registro de materiales propios del electricista. */
 .embed #btnInstall{ display:none !important; }
+/* Embebido y táctil, la topbar cede el tercio izquierdo a la app madre (ahí va
+   la píldora con el nombre de la obra) y se adelgaza a ~40px:
+   - la marca sobra: el usuario ya está DENTRO de ElectroPlan Pro;
+   - #projBtn sobra y es peligroso: cambiar de proyecto por adentro rompería el
+     vínculo obra↔plano que la madre administra con ?proyecto=. */
+.embed body.mobile .brand{ display:none; }
+.embed body.mobile #grpAcciones #projBtn{ display:none; }
+.embed body.mobile .topbar{ padding:4px 8px;
+  padding-top:calc(4px + env(safe-area-inset-top)); padding-left:170px; }
+.embed body.mobile .topbar .grp button,.embed body.mobile #menuMovil{ min-height:32px; }
 </style>
 
 <div class="topbar">
@@ -438,7 +446,6 @@
     </div>
     <div class="shapebar" id="selbar" style="display:none"></div>
     <div class="ctxbar" id="ctxbar" style="display:none"></div>
-    <div class="floorbar" id="floorbar"></div>
     <div class="zoombar">
       <button id="zin">＋</button>
       <button id="zout">－</button>
@@ -754,19 +761,36 @@ function nearestWall(p,maxd){ let best=null,bd=maxd||20/scale;
   for(const w of doc.walls){ if(!enPiso(w))continue; const pr=projectOnWall(w,p); if(pr.d<bd){bd=pr.d;best={w,pr};} } return best; }
 
 /* ===================== Coordenadas ===================== */
-function updateScale(){ const r=svg.getBoundingClientRect(); scale=r.width/vb.w; if(r.width) vb.h=vb.w*(r.height/r.width); applyViewBox(); }
+// La guarda de rect-cero. Embebido en un iframe (o con display:none del lado
+// del padre) el lienzo puede medir 0×0: dividir por ese rect envenenaba vb y
+// scale con NaN/Infinity y NADA lo reparaba después — el plano quedaba
+// invisible en celular. Regla: con rect inválido no se toca ni vb ni scale.
+function rectUtil(){ const r=svg.getBoundingClientRect();
+  return (r.width>2&&r.height>2)?r:null; }
+// Un vb solo es de fiar si sus 4 números son finitos y tiene área. Los usuarios
+// que ya guardaron un vb envenenado en planelectrico:proj:* revivían el bug en
+// cada carga: esto lo corta.
+function vbSano(v){ return !!v&&[v.x,v.y,v.w,v.h].every(Number.isFinite)&&v.w>0&&v.h>0; }
+function updateScale(){ const r=rectUtil(); if(!r) return;
+  scale=r.width/vb.w; vb.h=vb.w*(r.height/r.width); applyViewBox(); }
 function applyViewBox(){ svg.setAttribute("viewBox",`${vb.x} ${vb.y} ${vb.w} ${vb.h}`); }
 function toWorld(ev){ const r=svg.getBoundingClientRect();
   return { x: vb.x+(ev.clientX-r.left)/r.width*vb.w, y: vb.y+(ev.clientY-r.top)/r.height*vb.h }; }
 function zoomAt(cx,cy,factor){
-  const r=svg.getBoundingClientRect();
+  const r=rectUtil(); if(!r) return;
   const wx=vb.x+(cx-r.left)/r.width*vb.w, wy=vb.y+(cy-r.top)/r.height*vb.h;
   vb.w=Math.max(200,Math.min(40000,vb.w*factor)); vb.h=vb.w*(r.height/r.width);
   vb.x=wx-(cx-r.left)/r.width*vb.w; vb.y=wy-(cy-r.top)/r.height*vb.h;
   updateScale(); render();
 }
+// true mientras el plano no logró ni un encuadre válido (p. ej. nació en un
+// iframe de 0×0). El ResizeObserver del final del archivo lo usa para hacer el
+// fit que quedó pendiente apenas el lienzo tenga tamaño real.
+let fitPendiente=true;
 function fitView(){
-  const r=svg.getBoundingClientRect(); const asp=r.height/r.width;
+  const r=rectUtil(); if(!r) return;
+  fitPendiente=false;
+  const asp=r.height/r.width;
   let pts=[]; const npf=new Set();
   doc.walls.forEach(w=>{ if(enPiso(w)){ npf.add(w.a); npf.add(w.b); } });
   npf.forEach(id=>{ if(doc.nodes[id]) pts.push(doc.nodes[id]); });
@@ -812,6 +836,10 @@ function setSave(state,txt){ const s=document.getElementById("saveInd");
   s.className="save "+(state||""); document.getElementById("saveTxt").textContent=txt; }
 function scheduleSave(){ setSave("busy","Guardando…"); clearTimeout(saveTimer);
   saveTimer=setTimeout(doSave,600); }
+// Cerrar la pestaña, cambiar de app o que React desmonte el iframe mataba el
+// setTimeout pendiente: hasta 600 ms de trabajo perdidos en silencio. El flush
+// en pagehide (el único evento fiable en móvil) los rescata.
+window.addEventListener("pagehide",()=>{ if(saveTimer){ clearTimeout(saveTimer); saveTimer=null; try{ doSave(); }catch(e){} } });
 // ================= FOTOS (IndexedDB) =================
 let idb=null;
 try{ const rq=indexedDB.open("planelectrico",1);
@@ -882,7 +910,7 @@ function doSave(){ try{
 function openProject(id,fit){ const raw=lsGet("planelectrico:proj:"+id); if(!raw) return false;
   try{ const s=JSON.parse(raw);
     doc=normalizeDoc(s.doc||{nodes:{},walls:[],openings:[],elements:[],dims:[],labels:[],circuits:[],routes:[],photos:[]});
-    if(s.vb)vb=s.vb; projectId=id; projectName=s.name||"Proyecto"; fondoURL=null; fondoLoading=false;
+    if(vbSano(s.vb))vb=s.vb; projectId=id; projectName=s.name||"Proyecto"; fondoURL=null; fondoLoading=false;
     reindexIds(); setSel([]); draft=null; lsSet("planelectrico:cur",id);
     if(fit!==false){ history=[snap()]; hi=0; updateScale(); fitView(); updateProjLabel(); }
     return true; }catch(e){ return false; } }
@@ -906,7 +934,7 @@ function loadSaved(){
     const raw=lsGet("planelectrico:v1")||lsGet("electroplan:v3");
     if(raw){ const s=JSON.parse(raw);
       if(!cfg&&s.settings){ settings=Object.assign(settings,s.settings); normalizeSettings(s.settings); xp=s.xp||0; }
-      doc=normalizeDoc(s.doc); if(s.vb)vb=s.vb;
+      doc=normalizeDoc(s.doc); if(vbSano(s.vb))vb=s.vb;
       projectId=newProjectId(); projectName="Mi primer proyecto"; reindexIds();
       doSave(); return true; }
   }catch(e){ storageOK=false; }
@@ -945,6 +973,8 @@ function actualizarSheetHint(){
   const side=document.getElementById("side"), h=document.getElementById("sheethint"); if(!side||!h) return;
   const mostrar=document.body.classList.contains("mobile")&&sheetState==="peek"&&selection.length>0;
   side.classList.toggle("hassel",mostrar);
+  // La altura viva de la hoja en peek: el rail y la zoombar la siguen por CSS.
+  document.body.style.setProperty("--peekh",mostrar?"112px":"60px");
   if(mostrar){ const nb=h.querySelector("b"); if(nb) nb.textContent=nombreSel(); }
 }
 function toggleSel(t,id){ const i=selection.findIndex(s=>s.type===t&&s.id===id);
@@ -1470,6 +1500,13 @@ function drawGrid(){
   svg.appendChild(g);
 }
 
+// Medida tecleada mientras se traza: lo que separa dibujar A OJO de dibujar A
+// MEDIDA. Se escribe el número, Enter, y la pared queda exacta en la dirección
+// que marca el cursor. Antes solo se podía corregir después, y corregir después
+// deformaba la esquina.
+let medidaTecleada="";
+const hayMedidaTecleada=()=>medidaTecleada!==""&&+medidaTecleada>0;
+
 function drawDraft(){
   const g=el("g",{style:"pointer-events:none"});
   if(draft.type==="wall"){ const a=draft.start, b=draft.cursor;
@@ -1479,7 +1516,19 @@ function drawDraft(){
     const box=el("g",{});
     const t=el("text",{x:mid.x,y:mid.y-14/scale,"font-size":22/scale,fill:"var(--accent)",
       "text-anchor":"middle","font-weight":"800",style:"font-family:var(--mono)"});
-    t.textContent=fmt(dist(a,b))+(draft.refMatch?" ≡1ª":""); box.appendChild(t); g.appendChild(box);
+    // Si el usuario está escribiendo la medida, manda lo que escribe, no lo que
+    // arrastra: se ve el número en grande con un cursor, como en un CAD.
+    if(medidaTecleada!==""){
+      t.setAttribute("fill","var(--ok)");
+      t.textContent=medidaTecleada+"▏cm  ↵";
+      const previa=el("line",{x1:a.x,y1:a.y,stroke:"var(--ok)","stroke-width":settings.wallT,
+        "stroke-linecap":"round",opacity:.85});
+      const L=+medidaTecleada;
+      if(L>0){ const ang=Math.atan2(b.y-a.y,b.x-a.x);
+        previa.setAttribute("x2",a.x+Math.cos(ang)*L); previa.setAttribute("y2",a.y+Math.sin(ang)*L);
+        g.appendChild(previa); }
+    } else t.textContent=fmt(dist(a,b))+(draft.refMatch?" ≡1ª":"");
+    box.appendChild(t); g.appendChild(box);
   } else if(draft.type==="curve"){ const a=draft.start,b=draft.cursor;
     g.appendChild(el("line",{x1:a.x,y1:a.y,x2:b.x,y2:b.y,stroke:"var(--accent)",
       "stroke-width":settings.wallT,"stroke-linecap":"round",opacity:.5,"stroke-dasharray":(7/scale)+" "+(6/scale)}));
@@ -1601,7 +1650,7 @@ let paredPressId=null; // pointer que inició el gesto de pared EN el lienzo (el
 let vistaCliente=false; // ✨ plano limpio para enseñar al cliente (oculta cotas, anclas y técnica)
 // Cursor flecha negra estilo Illustrator para "Elegir" (solo escritorio; en táctil no hay cursor)
 const ARROW_CUR="url(\"data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='22'%20height='22'%20viewBox='0%200%2024%2024'%3E%3Cpath%20d='M4%203L4%2019L8.5%2015L11%2021L14%2020L11.5%2014L18%2014Z'%20fill='%23000'%20stroke='%23fff'%20stroke-width='1.3'%20stroke-linejoin='round'/%3E%3C/svg%3E\") 4 3, default";
-function setTool(t){ const bothSel=(tool==="select"||tool==="marquee")&&(t==="select"||t==="marquee"); tool=t; draft=null; pendingPlace=null; pruneNodes(); if(!bothSel) setSel([]); pintarFormato=false;
+function setTool(t){ const bothSel=(tool==="select"||tool==="marquee")&&(t==="select"||t==="marquee"); tool=t; draft=null; medidaTecleada=""; pendingPlace=null; pruneNodes(); if(!bothSel) setSel([]); pintarFormato=false;
   if(CATS[t]&&!settings.dragVisto){ settings.dragVisto=true; scheduleSave();
     avisar("💡 Tip: también podés ARRASTRAR la ficha de la barra directo al plano, como en Duolingo."); }
   document.querySelectorAll(".tool").forEach(b=>b.classList.toggle("on",b.dataset.tool===t));
@@ -1719,7 +1768,8 @@ svg.addEventListener("pointermove",ev=>{
     const d=Math.max(1,Math.hypot(pts[0].x-pts[1].x,pts[0].y-pts[1].y));
     const mx=(pts[0].x+pts[1].x)/2,my=(pts[0].y+pts[1].y)/2;
     if(Math.abs(d-pinch.d0)>14||Math.hypot(mx-pinch.mx,my-pinch.my)>14) pinchMoved=true;
-    const r=svg.getBoundingClientRect(); const k=pinch.d0/d;
+    const r=rectUtil(); if(!r) return;
+    const k=pinch.d0/d;
     const w2=Math.max(200,Math.min(40000,pinch.vb0.w*k)); const h2=w2*(r.height/r.width);
     const wx=pinch.vb0.x+(pinch.mx-r.left)/r.width*pinch.vb0.w;
     const wy=pinch.vb0.y+(pinch.my-r.top)/r.height*pinch.vb0.h;
@@ -2211,6 +2261,7 @@ function onMove(ev){
 // Fija un tramo de pared al SOLTAR (clic corto o arrastre, estilo Illustrator).
 // Si el ancla de destino es la PRIMERA de la cadena y ya hay ≥3 tramos, la figura se cierra sola.
 function commitTramoPared(ev){
+  medidaTecleada="";   // fijó con el mouse: lo que estuviera a medio escribir ya no aplica
   const w=toWorld(ev); const sp=snapWorld(w,null);
   let b=applyLock(draft.start,sp,ev.shiftKey);
   if(!sp.node) b=refSnapPoint(draft.start,b);
@@ -2227,6 +2278,32 @@ function commitTramoPared(ev){
   draft={type:"wall",start:N(bn),startNode:bn,firstNode:draft.firstNode,cursor:N(bn),space:draft.space,created};
   pushHistory(); render();
 }
+// Fija el tramo con la medida EXACTA que se tecleó, en la dirección que marca el
+// cursor. Es la mitad que faltaba: el snap de la grilla redondea X e Y por
+// separado, así que la LONGITUD —lo único que le importa al que construye—
+// nunca caía redonda salvo en paredes horizontales o verticales.
+// Si el candado de 45° está activo, la dirección se endereza antes de medir.
+function commitTramoExacto(cm){
+  if(!draft||draft.type!=="wall") return false;
+  const a=N(draft.startNode); if(!a) return false;
+  const c=draft.cursor;
+  if(Math.hypot(c.x-a.x,c.y-a.y)<1){
+    avisar("Movete hacia donde va la pared y volvé a escribir la medida."); return false; }
+  const dir=applyLock(a,c,false);                  // respeta el candado de 45°
+  const ang=Math.atan2(dir.y-a.y,dir.x-a.x);
+  const b={x:a.x+Math.cos(ang)*cm,y:a.y+Math.sin(ang)*cm};
+  const an=draft.startNode, bn=findOrCreateNode(b), B=N(bn);
+  if(bn===an||!B) return false;
+  const wid=uid("w");
+  doc.walls.push({id:wid,a:an,b:bn,name:"",space:draft.space||"",material:"Ladrillo",piso:doc.pisoActivo});
+  addXP(6); const created=(draft.created||[]).concat(wid);
+  if(bn===draft.firstNode&&created.length>=3){
+    draft=null; pushHistory(); setTool("select"); setSel(created.map(id=>({type:"wall",id})));
+    avisar("✅ Figura cerrada — "+created.length+" paredes"); render(); return true; }
+  draft={type:"wall",start:N(bn),startNode:bn,firstNode:draft.firstNode,cursor:N(bn),space:draft.space,created};
+  pushHistory(); render(); return true;
+}
+
 function onUp(ev){
   if(action){
     if(action.type==="marquee"){
@@ -3048,7 +3125,10 @@ function pedirOpcion(titulo,ops){ return new Promise(res=>{
   m.querySelector("#uiNo").onclick=()=>done(null);
   m.onclick=ev=>{ if(ev.target===m) done(null); }; }); }
 function avisar(msg){ const d=document.createElement("div");
-  d.style.cssText="position:fixed;left:50%;bottom:26px;transform:translateX(-50%);background:var(--panel);border:1px solid var(--accent);color:var(--ink);padding:10px 16px;border-radius:10px;z-index:120;font-size:13px;box-shadow:0 8px 24px rgba(0,0,0,.4);max-width:82%;text-align:center";
+  // En móvil el toast sube por encima de la hoja y el rail (avisarCot ya lo
+  // hacía; este quedaba ENTERRADO debajo y los avisos no se veían).
+  const abajo=document.body.classList.contains("mobile")?"calc(150px + env(safe-area-inset-bottom))":"26px";
+  d.style.cssText="position:fixed;left:50%;bottom:"+abajo+";transform:translateX(-50%);background:var(--panel);border:1px solid var(--accent);color:var(--ink);padding:10px 16px;border-radius:10px;z-index:120;font-size:13px;box-shadow:0 8px 24px rgba(0,0,0,.4);max-width:82%;text-align:center";
   d.textContent=msg; document.body.appendChild(d); setTimeout(()=>d.remove(),3400); }
 
 // toast del carrito: singleton (las altas en ráfaga actualizan el MISMO aviso) y tocable → abre la cotización
@@ -3274,6 +3354,9 @@ async function pedirInstalacion(){
 }
 function showInstallPrompt(){
   try{
+    // Embebido en ElectroPlan Pro el banner enseñaría a instalar... la URL de
+    // la app madre. La instalación vive allá, no acá.
+    if(document.documentElement.classList.contains("embed")) return;
     if(!esMovil()) return;                                   // el mensaje es "en el celular"
     if(settings.instalarVisto) return;                       // ya lo descartó o ya la instaló
     if(document.getElementById("installBanner")) return;     // ya visible
@@ -3802,7 +3885,23 @@ window.addEventListener("keydown",e=>{
     e.preventDefault(); const paso=e.shiftKey?10:1;
     nudgeSelection(e.key==="ArrowLeft"?-paso:e.key==="ArrowRight"?paso:0,
                    e.key==="ArrowUp"?-paso:e.key==="ArrowDown"?paso:0); return; }
-  if(e.key==="Escape"){ draft=null; pendingPlace=null; setSel([]); linkMode=null; calibMode=null; pintarFormato=false; smartGuides.length=0; pruneNodes(); updateHint(); render(); }
+  // --- Escribir la medida mientras se traza la pared (como en un CAD) ---
+  // Va ANTES de Escape/Enter/Backspace porque mientras se escribe una medida
+  // esas tres teclas significan otra cosa: borrar un dígito, fijar el tramo, o
+  // cancelar solo el número sin perder el trazo.
+  if(draft&&draft.type==="wall"&&!e.ctrlKey&&!e.metaKey&&!e.altKey){
+    if(/^[0-9]$/.test(e.key)||((e.key==="."||e.key===",")&&!medidaTecleada.includes("."))){
+      e.preventDefault(); medidaTecleada+=(e.key===","?".":e.key); render(); return; }
+    if(e.key==="Backspace"&&medidaTecleada!==""){
+      e.preventDefault(); medidaTecleada=medidaTecleada.slice(0,-1); render(); return; }
+    if(e.key==="Escape"&&medidaTecleada!==""){
+      e.preventDefault(); medidaTecleada=""; render(); return; }   // cancela el número, no el trazo
+    if(e.key==="Enter"&&hayMedidaTecleada()){
+      e.preventDefault(); const cm=+medidaTecleada; medidaTecleada="";
+      if(!commitTramoExacto(cm)) render();
+      return; }
+  }
+  if(e.key==="Escape"){ medidaTecleada=""; draft=null; pendingPlace=null; setSel([]); linkMode=null; calibMode=null; pintarFormato=false; smartGuides.length=0; pruneNodes(); updateHint(); render(); }
   if(e.key==="Enter"){ finishDraft(); }
   if((e.key==="Delete"||e.key==="Backspace")&&selection.length){ deleteSelected(); }
   const keys={v:"select",b:"marquee",w:"wall",c:"curve",r:"room",d:"door",n:"window",m:"dim",t:"toma",l:"lampara",i:"interruptor",u:"route",f:"photo",e:"stair",p:"pan"};
@@ -3916,7 +4015,12 @@ function seed(){ const s=[[0,0],[500,0],[500,400],[0,400]].map(([x,y])=>{const i
   doc.elements.push({id:uid("e"),type:"panel",x:40,y:360,label:"Tablero",notes:""});
   doc.labels.push({id:uid("l"),x:250,y:120,text:"Sala"});
 }
-function esMovil(){ try{ return (matchMedia("(pointer:coarse)").matches&&innerWidth<=1100)||innerWidth<=900; }catch(e){ return innerWidth<=900; } }
+// El perfil lo decide el PUNTERO, no el ancho. Antes un iPad con el iframe de
+// 892px era "móvil" y al expandirse a 1180px saltaba a layout de escritorio A
+// MITAD DE UN TRAZO (el rail cambiaba de fila a columna bajo el dedo). Un
+// aparato táctil es táctil mida lo que mida su iframe; el ancho solo importa
+// con mouse, para que una ventana angosta no muestre paneles que no caben.
+function esMovil(){ try{ return matchMedia("(pointer:coarse)").matches||innerWidth<=700; }catch(e){ return innerWidth<=700; } }
 function aplicarModo(){ const m=esMovil(), antes=document.body.classList.contains("mobile");
   document.body.classList.toggle("mobile",m);
   if(antes!==m) LUPA_ZONAS.forEach(lupaQuitar); } // la lupa no sobrevive al cambio de layout
@@ -3936,7 +4040,10 @@ async function abrirMenuMovil(){
     {k:"nuevo",txt:"✦ Nuevo proyecto"},
     {k:"full",txt:"⛶ Pantalla completa"},
     {k:"tema",txt:"◐ Cambiar tema"},
-    {k:"ayuda",txt:"? Tutorial"}]);
+    {k:"ayuda",txt:"? Tutorial"}]
+    // Embebido, la pantalla completa la administra la app madre (el lienzo ya
+    // ocupa todo): el ítem acá solo confundiría.
+    .filter(it=>!(document.documentElement.classList.contains("embed")&&it.k==="full")));
   if(!k) return;
   const acc={
     grid:()=>document.getElementById("gridBtn").click(),
@@ -3948,7 +4055,13 @@ async function abrirMenuMovil(){
     nuevo:()=>document.getElementById("clearBtn").onclick(),
     tema:()=>document.getElementById("themeBtn").click(),
     ayuda:()=>showTutorial(),
-    full:()=>{ try{ document.fullscreenElement?document.exitFullscreen():document.documentElement.requestFullscreen(); }catch(e){ avisar("Pantalla completa no disponible aquí."); } }
+    full:()=>{ const iOS=/iphone|ipad|ipod/i.test(navigator.userAgent)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1);
+      const falla=()=>avisar(iOS?"En iPhone el navegador no deja pantalla completa. Instalá la app en tu pantalla de inicio y se abre sin barras.":"Pantalla completa no disponible aquí.");
+      // requestFullscreen devuelve una PROMESA: si la niegan (p. ej. iframe sin
+      // permiso), el try/catch síncrono no la ve y el botón fallaba en silencio.
+      try{ if(document.fullscreenElement){ document.exitFullscreen(); }
+        else { const p=document.documentElement.requestFullscreen(); if(p&&p.catch) p.catch(falla); } }
+      catch(e){ falla(); } }
   }; if(acc[k]) acc[k]();
 }
 document.getElementById("menuMovil").onclick=abrirMenuMovil;
@@ -3974,6 +4087,19 @@ document.getElementById("sheethint")?.addEventListener("click",()=>setSheet("mid
 window.addEventListener("resize",()=>{ updateScale(); if(v3d)build3d(); aplicarModo(); renderCtxBar(); });
 try{ if(window.visualViewport){ const vvSync=()=>updateScale();
   visualViewport.addEventListener("resize",vvSync); visualViewport.addEventListener("scroll",vvSync); } }catch(_){}
+// El ResizeObserver es el que de verdad ve nacer al lienzo. Embebido, el iframe
+// puede medir 0×0 en el init (React todavía no acomodó el layout) y ahí ningún
+// "resize" de window llega: el primer encuadre quedaba pendiente para siempre y
+// el plano parecía vacío. Cuando el rect por fin existe, se hace el fit que
+// faltaba; en los resizes siguientes solo se recalibra la escala.
+try{ if(window.ResizeObserver){
+  const ro=new ResizeObserver(()=>{ try{
+    if(!rectUtil()) return;
+    if(fitPendiente){ fitPendiente=false; fitView(); }
+    else { updateScale(); pedirRender(true); }
+  }catch(e){} });
+  ro.observe(document.querySelector(".stagewrap"));
+} }catch(_){}
 
 // PWA: service worker SOLO en hosting propio (nunca en el visor de artifacts ni embebida en iframe)
 try{ if(window.parent===window && "serviceWorker" in navigator && location.protocol.indexOf("http")===0 &&
