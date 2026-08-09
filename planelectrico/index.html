@@ -646,12 +646,33 @@ function circuitCableM(c){
   // descargo prometía 4 m mientras el código ponía 2 → cotizaciones cortas de cable.
   const perPt=cableXPuntoCm();
   const rs=circuitRoutes(c);
-  if(rs.length){ let cm=rs.reduce((s,r)=>s+routeLen(r),0);
-    cm += circuitPoints(c)*perPt;
-    return (cm/CM_PER_M)*(1+settings.desperdicio/100); }
-  const p=panelPos(); if(!p) return 0;
+  const desp=1+settings.desperdicio/100;
+  const dibujado=rs.length
+    ? ((rs.reduce((s,r)=>s+routeLen(r),0)+circuitPoints(c)*perPt)/CM_PER_M)*desp : 0;
+  const p=panelPos();
+  // La tubería dibujada manda SOLO si de verdad llega al tablero. Antes bastaba
+  // UNA ruta con el circuitId para descartar la estimación entera: trazar el tubo
+  // de una luz a su apagador —el trabajo bien hecho— borraba de la cotización
+  // todo el recorrido hasta el tablero. Medido: 48,3 m de cable pasaban a 16,1 m
+  // por dibujar 2 m de tubo. El técnico cuidadoso cobraba menos que el descuidado.
+  const tocaTablero=!!p&&rs.some(r=>(r.pts||[]).some(q=>Math.abs(q.x-p.x)+Math.abs(q.y-p.y)<60));
+  if(rs.length&&tocaTablero) return dibujado;
+  if(!p) return dibujado;
   const pe=doc.elements.find(e=>e.type==="panel"); const pfl=pisoIdx(pe&&pe.piso);
   let cm=0; doc.elements.filter(e=>e.circuitId===c.id && esElectrico(e)).forEach(e=>{
+    cm += Math.abs(e.x-p.x)+Math.abs(e.y-p.y) + perPt + 260*Math.abs(pisoIdx(e.piso)-pfl); });
+  // Con el tubo a medio trazar, nunca por debajo de lo ya dibujado.
+  return Math.max((cm/CM_PER_M)*desp, dibujado); }
+// Cable estimado de los puntos que TODAVÍA no tienen circuito. cotTotales solo
+// recorría doc.circuits, así que el camino normal —dibujar el plano y pasar
+// derecho a cotizar, sin haber armado circuitos— daba 0 m de cable, cubicacionV2
+// ni emitía la línea, y el presupuesto salía rotulado «completo» sin el rubro más
+// largo. Misma cuenta que circuitCableM para que no haya dos calculadoras.
+function cableSueltosM(){
+  const p=panelPos(); if(!p) return 0;
+  const pe=doc.elements.find(e=>e.type==="panel"); const pfl=pisoIdx(pe&&pe.piso);
+  const perPt=cableXPuntoCm();
+  let cm=0; doc.elements.filter(e=>!e.circuitId&&esElectrico(e)).forEach(e=>{
     cm += Math.abs(e.x-p.x)+Math.abs(e.y-p.y) + perPt + 260*Math.abs(pisoIdx(e.piso)-pfl); });
   return (cm/CM_PER_M)*(1+settings.desperdicio/100); }
 // Pares luz↔apagador del piso activo que todavía no tienen su tubo trazado.
@@ -1684,9 +1705,18 @@ function detectRoomsCalc(){
       }
     }
   }
-  // quedarnos con los más pequeños que no se contienen (aprox)
+  // Quedarnos con los más pequeños que no se contienen. Este comentario ya estaba
+  // y prometía este filtro, pero el filtro NUNCA se escribió: solo se ordenaba y
+  // se recortaba, así que los ciclos ENVOLVENTES (el contorno que ya contiene a
+  // los cuartos) entraban también y el área de la planta contaba el mismo piso
+  // dos y tres veces — 48 m² donde la cinta da 24 en una casa partida al medio.
+  // Ordenado de menor a mayor, un ciclo sobra si contiene el centro de otro ya
+  // aceptado: ese es el envolvente.
   rooms.sort((a,b)=>a.area-b.area);
-  return rooms.slice(0,12);
+  const centro=P=>{ let x=0,y=0; P.forEach(p=>{x+=p.x;y+=p.y;}); return {x:x/P.length,y:y/P.length}; };
+  const out=[];
+  for(const r of rooms){ if(!out.some(o=>pointInPoly(centro(o.poly),r.poly))) out.push(r); }
+  return out.slice(0,12);
 }
 function polyArea(P){ let a=0; for(let i=0;i<P.length;i++){ const j=(i+1)%P.length;
   a+=P[i].x*P[j].y-P[j].x*P[i].y; } return a/2; }
@@ -1761,11 +1791,28 @@ function updateHint(){ const h=document.getElementById("hint");
   if(document.body.classList.contains("mobile")&&txt){ clearTimeout(window.__hintT);
     window.__hintT=setTimeout(()=>{ h.style.display="none"; },4000); } }
 
-function refSnapPoint(a,b){ // iguala a la medida de la 1ª pared del proyecto si está cerca
-  if(!doc.walls.length) return b;
-  const ref=wallLen(doc.walls[0]); if(!ref) return b;
+// Imán "misma medida que la pared anterior". Dos cosas estaban mal y hacían que
+// el plano midiera distinto de lo que el usuario dibujó:
+//  1. La referencia era doc.walls[0] — la PRIMERA del array, de cualquier piso y
+//     pudiendo ser curva (ahí wallLen es el arco). Ahora es la última pared RECTA
+//     del piso activo, que es la que el usuario acaba de trazar y tiene en la cabeza.
+//  2. La tolerancia estaba en CENTÍMETROS (hasta 20) y no miraba el zoom: acercado,
+//     una diferencia de 10 cm bien visible en pantalla se tragaba igual y la pared
+//     salía 10 cm más larga sin que nada lo dijera. Ahora son 8 px de PANTALLA,
+//     como todos los demás imanes del editor: lo que el ojo no distingue, se pega;
+//     lo que se ve, se respeta.
+function refSnapPoint(a,b){
+  let ref=0;
+  for(let i=doc.walls.length-1;i>=0;i--){ const w=doc.walls[i];
+    if(!enPiso(w)||w.curve) continue; const L=wallLen(w); if(L>1){ ref=L; break; } }
+  if(!ref) return b;
   const L=Math.hypot(b.x-a.x,b.y-a.y); if(!L) return b;
-  const tol=Math.max(6,Math.min(20,ref*0.05));
+  // Tope DOBLE, y hace falta: 8 px de pantalla acotados a 4 cm de mundo. Solo con
+  // píxeles no alcanza — alejado (0,24 px/cm, una casa grande en celular) esos
+  // 8 px son 33 cm, y el imán volvía a estirar la pared un 6 % en silencio. Un
+  // imán que mueve POSICIONES puede razonar en píxeles; uno que cambia una MEDIDA
+  // no, porque el número queda escrito en el plano y de ahí sale el material.
+  const tol=Math.min(8/scale,4);
   if(Math.abs(L-ref)<=tol&&Math.abs(L-ref)>0.01){ const k=ref/L;
     return {x:a.x+(b.x-a.x)*k, y:a.y+(b.y-a.y)*k, refMatch:true}; }
   if(Math.abs(L-ref)<=0.01) return {x:b.x,y:b.y,refMatch:true};
@@ -2587,8 +2634,16 @@ function renderInspector(p){
     document.getElementById("f_col").onchange=e2=>{w.color=e2.target.value;pushHistory();render();render3dIf();};
     document.getElementById("f_colAuto").onclick=()=>{delete w.color;pushHistory();render();render3dIf();};
     document.getElementById("f_apply").onclick=()=>{ const nl=+document.getElementById("f_len").value;
-      if(nl>0){ const a=N(w.a),b=N(w.b); const ang=angleOf(a,b);
-        doc.nodes[w.b]={x:a.x+Math.cos(ang)*nl,y:a.y+Math.sin(ang)*nl}; pushHistory(); render(); } };
+      if(nl>0){ const Lact=wallLen(w); if(!(Lact>0)) return;
+        // Escalar la pared por k = pedido / actual, curvatura incluida. Así la
+        // MEDIDA QUE SE MUESTRA (que en una curva es el ARCO) queda exactamente en
+        // lo pedido, y volver a aplicar el mismo número no mueve nada. Antes se
+        // colocaba el extremo a esa distancia en línea RECTA: en una pared curva,
+        // teclear el número que el propio plano mostraba la alargaba sola.
+        const k=nl/Lact; const a=N(w.a),b=N(w.b);
+        doc.nodes[w.b]={x:a.x+(b.x-a.x)*k, y:a.y+(b.y-a.y)*k};
+        if(w.curve) w.curve=w.curve*k;   // figura semejante: el arco escala igual que la cuerda
+        pushHistory(); render(); } };
     document.getElementById("f_del").onclick=()=>{ doc.walls=doc.walls.filter(x=>x.id!==w.id);
       doc.openings=doc.openings.filter(o=>o.wallId!==w.id); setSel([]); pushHistory(); render(); };
   }
@@ -3012,6 +3067,7 @@ function cantMaterial(m,T){ return m&&m.atado?magnitudDe(m.atado,T):Math.max(0,+
 function cotTotales(){
   const elemCount={}; doc.elements.forEach(e=>{ if(!elInfo(e.type).decorativo) elemCount[e.type]=(elemCount[e.type]||0)+1; });
   let cableTotal=0; doc.circuits.forEach(c=>cableTotal+=circuitCableM(c));
+  cableTotal+=cableSueltosM();   // los puntos sin circuito también llevan cable
   const puntos=doc.elements.filter(esElectrico).length;
   const tubM=doc.routes.reduce((s,r)=>s+routeLen(r)/CM_PER_M,0);
   // Materiales propios del electricista. Si uno se ata a los metros de cable o de
