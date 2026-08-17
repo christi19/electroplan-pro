@@ -80,6 +80,13 @@
     background:var(--panel);border:1px solid var(--line);border-radius:20px;
     padding:6px 14px;font-size:12px;color:var(--soft);pointer-events:none;
     box-shadow:0 4px 16px rgba(0,0,0,.2);max-width:90%;text-align:center;}
+  /* Píldora de pisos: abajo-izquierda, espejo de la zoombar. Muestra en qué
+     planta se dibuja y abre el menú de plantas (cambiar / renombrar / agregar). */
+  .floorbar{position:absolute;left:12px;bottom:12px;z-index:6;}
+  .floorbar button{min-height:44px;padding:0 14px;background:var(--panel);
+    border:1px solid var(--line2);border-radius:12px;font-weight:700;font-size:13px;
+    box-shadow:0 4px 14px rgba(0,0,0,.18);}
+  .floorbar button:focus-visible{outline:2px solid var(--accent);outline-offset:1px;}
   .zoombar{position:absolute;right:12px;bottom:12px;display:flex;flex-direction:column;gap:6px;}
   .zoombar button{width:40px;height:40px;justify-content:center;padding:0;font-size:18px;background:var(--panel);}
   .zoombar button.on{border-color:var(--accent);color:var(--accent);}
@@ -324,6 +331,8 @@
   body.mobile .tabs::-webkit-scrollbar{display:none;}
   /* reubicaciones sobre el lienzo */
   body.mobile .zoombar{bottom:calc(var(--peekh,60px) + 86px + env(safe-area-inset-bottom));right:8px;}
+  /* la píldora de pisos sube por encima de la fila de la shapebar para no chocarle */
+  body.mobile .floorbar{left:8px;bottom:calc(var(--peekh,60px) + 140px + env(safe-area-inset-bottom));}
   body.mobile #selbar{left:8px;top:8px;transform:none;
     max-width:calc(100% - 112px);flex-wrap:wrap;justify-content:flex-start;}
   body.mobile .shapebar{top:auto;bottom:calc(var(--peekh,60px) + 86px + env(safe-area-inset-bottom));}
@@ -400,6 +409,7 @@
     <button id="gridBtn" class="ghost">▤ Grilla</button>
     <button id="snapBtn" class="on ghost" title="Snap a grilla 5 cm">🧲 Snap</button>
     <button id="lockBtn" class="ghost" title="Bloqueo 45° (o mantén Shift)">📐 45°</button>
+    <button id="cotaBtn" class="ghost" title="Qué mide la cota de las paredes: al eje, por dentro o por fuera">📏 al eje</button>
   </div>
   <div class="grp" id="grpAcciones">
     <button id="projBtn" class="ghost">📁 <span id="projName" style="max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Proyecto</span></button>
@@ -443,6 +453,9 @@
       </div>
       <button id="fabOK" title="Terminar trazo" style="display:none">✔</button>
       <button id="fabX" title="Cancelar trazo" style="display:none">✕</button>
+    </div>
+    <div class="floorbar" id="floorbar">
+      <button id="floorbtn" title="Pisos de la obra" aria-label="Pisos de la obra: cambiar de planta, renombrar o agregar">🏢 Planta 1</button>
     </div>
     <div class="shapebar" id="selbar" style="display:none"></div>
     <div class="ctxbar" id="ctxbar" style="display:none"></div>
@@ -555,6 +568,7 @@ const AWG_BY_BREAKER={15:"#14",20:"#12",30:"#10",40:"#8",50:"#6"};
 // Estado del documento
 let doc={ nodes:{}, walls:[], openings:[], elements:[], dims:[], labels:[], circuits:[], routes:[], photos:[], precios:{}, stairs:[], texts:[], materiales:[] };
 let settings={ grid:true, snap:true, lock45:false, gridSize:5, gridMajor:100, wallH:250, wallT:10,
+  modoCota:"eje", // qué mide la cota de pared: "eje" | "dentro" (luz) | "fuera"
   moneda:"₡", desperdicio:15, voltaje:120,
   cableXPuntoM:4, // holgura de conexión por punto (m). Estándar del oficio: 3,6–4,5 m por salida
   catalogo:[], catalogoSembrado:false,
@@ -588,7 +602,17 @@ function normalizeDoc(d){ d.circuits=d.circuits||[]; d.elements=d.elements||[]; 
   if(!d.pisoActivo||!d.pisos.some(p=>p.id===d.pisoActivo)) d.pisoActivo=d.pisos[0].id;
   const pf=d.pisos[0].id;
   [d.walls,d.elements,d.labels,d.dims,d.routes,d.photos,d.stairs,d.texts].forEach(arr=>arr.forEach(x=>{ if(!x.piso) x.piso=pf; }));
+  purgarReferenciasMuertas(d);
   return d; }
+// Un borrado nunca deja referencias a ids muertos: los apagadores olvidan las
+// luces borradas, y el tubo auto-trazado muere con cualquiera de sus dos
+// extremos — si quedaba, la cubicación seguía cobrando metros de un tubo cuya
+// luz ya no existe. Las rutas manuales (sin from/to) no se tocan.
+function purgarReferenciasMuertas(d){
+  const vivo=id=>d.elements.some(x=>x.id===id);
+  d.elements.forEach(sw=>{ if(sw.controla) sw.controla=sw.controla.filter(vivo); });
+  d.routes=(d.routes||[]).filter(r=>!r.auto||((r.from==null||vivo(r.from))&&(r.to==null||vivo(r.to))));
+}
 function enPiso(x){ return ((x&&x.piso)||"p1")===((doc&&doc.pisoActivo)||"p1"); }
 function pisoIdx(pid){ const ps=(doc.pisos||[]); const i=ps.findIndex(p=>p.id===(pid||"p1")); return i<0?0:i; }
 function pisoRef(){ const ps=doc.pisos||[]; const i=ps.findIndex(p=>p.id===doc.pisoActivo);
@@ -773,6 +797,26 @@ function wallLen(w){ const pts=wallPts(w,w&&w.curve?24:1); let L=0;
   for(let i=1;i<pts.length;i++) L+=Math.hypot(pts[i].x-pts[i-1].x,pts[i].y-pts[i-1].y);
   return L; }
 function wallMid(w){ return wallPointAt(w,wallLen(w)/2); }
+// ¿Qué mide la cota de una pared? "eje" = por el centro del muro (el número de
+// siempre, y el default: ningún plano guardado cambia de número solo). "dentro" =
+// la luz libre que da la cinta métrica dentro del cuarto. "fuera" = de cara
+// externa a cara externa. El ajuste por extremo es el medio grosor de la pared
+// más gruesa que llega a ese nodo EN EL MISMO PISO; una pared suelta mide igual
+// en los tres modos.
+function ajusteCotaExtremos(w){ if((settings.modoCota||"eje")==="eje") return 0;
+  const medio=nid=>{ let t=0; doc.walls.forEach(o=>{ if(o.id!==w.id&&((o.piso||"p1")===(w.piso||"p1"))&&(o.a===nid||o.b===nid)) t=Math.max(t,grosorDe(o)); }); return t/2; };
+  return medio(w.a)+medio(w.b); }
+function cotaPared(w){ const L=wallLen(w); const m=settings.modoCota||"eje";
+  if(m==="eje") return L;
+  const adj=ajusteCotaExtremos(w);
+  return m==="dentro"?Math.max(0,L-adj):L+adj; }
+// La medida al eje que hay que fijar para que la cota MOSTRADA quede en `cota`.
+function ejeDesdeCota(w,cota){ const m=settings.modoCota||"eje";
+  if(m==="eje") return cota;
+  const adj=ajusteCotaExtremos(w);
+  return m==="dentro"?cota+adj:cota-adj; }
+function modoCotaTxt(){ const m=settings.modoCota||"eje";
+  return m==="dentro"?"por dentro":m==="fuera"?"por fuera":"al eje"; }
 function wallPointAt(w,dcm){ const pts=wallPts(w,w&&w.curve?24:1); let acc=0;
   for(let i=1;i<pts.length;i++){
     const seg=Math.hypot(pts[i].x-pts[i-1].x,pts[i].y-pts[i-1].y);
@@ -1117,8 +1161,30 @@ function pedirRender(skipPanel){
   framePedido=requestAnimationFrame(()=>{ framePedido=0;
     const sp=!framePanelPend; framePanelPend=false; render(sp); });
 }
+// --- Anti-colisión de rótulos ---
+// El LOD por zoom no alcanza: dos rótulos válidos pueden caer uno encima del
+// otro y el centro del plano se vuelve un nudo ilegible. Cada rótulo AUTOMÁTICO
+// (cotas de pared, medidas de apertura, etiquetas, tubos, áreas, notas) pide su
+// lugar en una rejilla de ocupación en PX DE PANTALLA; el que no cabe no se
+// pinta en esta pasada. Siempre se recupera: lo seleccionado salta la rejilla
+// (pero reserva su lugar), y acercar el zoom devuelve el espacio. Lo que
+// escribió el usuario (textos libres, cotas manuales, nombres de espacio) no se
+// oculta nunca: él es el dueño de dónde lo puso.
+function nuevaRejillaRotulos(){ const CEL=24, oc=new Set();
+  return (x,y,txt,fs,siempre)=>{   // x,y en MUNDO · fs = tamaño de letra en PX de pantalla
+    const wpx=Math.max(1,String(txt).length)*fs*0.62, hpx=fs*1.2;
+    const x0=x*scale-wpx/2, y0=y*scale-hpx/2;
+    const celdas=[];
+    for(let cx=Math.floor(x0/CEL);cx<=Math.floor((x0+wpx)/CEL);cx++)
+      for(let cy=Math.floor(y0/CEL);cy<=Math.floor((y0+hpx)/CEL);cy++){
+        const k=cx+":"+cy;
+        if(!siempre&&oc.has(k)) return false;
+        celdas.push(k); }
+    celdas.forEach(k=>oc.add(k)); return true; };
+}
 function render(skipPanel){
   while(svg.firstChild) svg.removeChild(svg.firstChild);
+  const cabeRot=nuevaRejillaRotulos();   // rejilla fresca: la ocupación es por pasada
   drawGrid();
   // fondo de calco (foto/plano calibrado)
   if(doc.fondo){
@@ -1178,23 +1244,31 @@ function render(skipPanel){
       "stroke-linecap":"round",opacity:.35,style:"pointer-events:none"})); }
     // medida sobre el punto medio del arco
     const L=wallLen(w); const mp=wallPointAt(w,L/2); const ang=mp.ang*180/Math.PI;
-    if(L*scale>36/mfs()){ // LOD: ocultar medidas de paredes chicas en pantalla
+    const rotP=fmt(cotaPared(w))+(w.curve?" ⌒":"")+(w.name?" · "+w.name:"");
+    if(L*scale>36/mfs()&&cabeRot(mp.x,mp.y,rotP,13*mfs(),isSel)){ // LOD + rejilla anti-colisión
     const t=el("text",{x:mp.x,y:mp.y,fill:"var(--ink)","font-size":13*mfs()/scale,
       // el grosor es MUNDO (cm) y el margen PANTALLA (px): cada uno en su unidad.
       // Antes se dividía todo entre scale y a zoom ≥420% la cota se metía dentro del muro.
       "text-anchor":"middle",dy:-(grosorDe(w)/2+6/scale),style:"pointer-events:none;font-family:var(--mono)",
       transform:`rotate(${Math.abs(ang)>90?ang+180:ang} ${mp.x} ${mp.y})`});
-    t.textContent=fmt(L)+(w.curve?" ⌒":"")+(w.name?" · "+w.name:"");
+    t.textContent=rotP;
     gDim.appendChild(t); } // va en la capa "Etiquetas, cotas y texto": es una anotación, no estructura
     // rombo de curvatura estilo Illustrator (pared seleccionada, herramienta Sel)
     if(isSel&&selection.length===1&&tool==="select"){
       const mx=(a.x+b.x)/2,my=(a.y+b.y)/2;
-      gWalls.appendChild(el("line",{x1:mx,y1:my,x2:mp.x,y2:mp.y,stroke:"var(--sel)",
+      // La agarradera vive CORRIDA en perpendicular (28 px de pantalla) para no
+      // sentarse sobre el centro de la pared: ese centro es el agarre natural de
+      // MOVERLA, y antes el segundo arrastre la arqueaba en vez de trasladarla.
+      const Lc0=Math.hypot(b.x-a.x,b.y-a.y)||1;
+      const nx0=-(b.y-a.y)/Lc0, ny0=(b.x-a.x)/Lc0;
+      const lado0=(w.curve||0)>=0?1:-1;
+      const hx=mp.x+nx0*lado0*28/scale, hy=mp.y+ny0*lado0*28/scale;
+      gWalls.appendChild(el("line",{x1:mx,y1:my,x2:hx,y2:hy,stroke:"var(--sel)",
         "stroke-width":1,"vector-effect":"non-scaling-stroke","stroke-dasharray":"4 3",
         style:"pointer-events:none"}));
       const s=12/scale;
-      gWalls.appendChild(el("rect",{x:mp.x-s,y:mp.y-s,width:s*2,height:s*2,
-        transform:`rotate(45 ${mp.x} ${mp.y})`,fill:w.curve?"var(--sel)":"var(--panel)",
+      gWalls.appendChild(el("rect",{x:hx-s,y:hy-s,width:s*2,height:s*2,
+        transform:`rotate(45 ${hx} ${hy})`,fill:w.curve?"var(--sel)":"var(--panel)",
         stroke:"var(--sel)","stroke-width":2/scale,
         "data-id":w.id,"data-kind":"chandle",style:"cursor:grab"}));
     }
@@ -1222,7 +1296,8 @@ function render(skipPanel){
     const tt=el("text",{x:mid.x,y:mid.y,"font-size":11/scale,fill:c.comoda?"var(--ink)":"var(--danger)",
       "text-anchor":"middle",style:"pointer-events:none;font-family:var(--mono)",
       transform:"rotate("+(Math.abs(dg)>90?dg+180:dg)+" "+mid.x+" "+mid.y+")"});
-    if(st.largo*scale>50){ tt.textContent="SUBE · "+c.N+" esc."+(c.comoda?"":" ⚠"); gWalls.appendChild(tt); }
+    const rotE="SUBE · "+c.N+" esc."+(c.comoda?"":" ⚠");
+    if(st.largo*scale>50&&cabeRot(mid.x,mid.y,rotE,11,isSel)){ tt.textContent=rotE; gWalls.appendChild(tt); }
   });
 
   // nodos (anclas) — LOD estilo Illustrator: si la pared más larga que toca el nodo
@@ -1274,7 +1349,7 @@ function render(skipPanel){
     }
     // medida visible de la apertura (rotada como la de la pared)
     const degA=ang*180/Math.PI;
-    if(o.width*scale>26/mfs()){
+    if(o.width*scale>26/mfs()&&cabeRot(cx,cy,fmt(o.width),11*mfs(),isSel)){
     const mt=el("text",{x:cx,y:cy,"font-size":11*mfs()/scale,fill:o.kind==="door"?"var(--soft)":"var(--blue)",
       "text-anchor":"middle",dy:(grosorDe(w)/2+13/scale), // grosor en cm + margen en px (ver cota de pared)
       style:"pointer-events:none;font-family:var(--mono)",
@@ -1321,7 +1396,7 @@ function render(skipPanel){
       stroke:isSel?"var(--sel)":"var(--line2)","stroke-width":(isSel?2.5:1.5)/scale}));
     const tx=el("text",{x:e.x,y:e.y,"font-size":18/scale,"text-anchor":"middle",dy:6/scale,style:"pointer-events:none"});
     tx.textContent=info.icon; g.appendChild(tx);
-    if(e.label){ const lb=el("text",{x:e.x,y:e.y+24/scale,"font-size":11/scale,fill:"var(--soft)",
+    if(e.label&&cabeRot(e.x,e.y+24/scale,e.label,11,isSel)){ const lb=el("text",{x:e.x,y:e.y+24/scale,"font-size":11/scale,fill:"var(--soft)",
       "text-anchor":"middle",style:"pointer-events:none;font-family:var(--mono)"}); lb.textContent=e.label; g.appendChild(lb); }
     gElem.appendChild(g);
   });
@@ -1339,12 +1414,13 @@ function render(skipPanel){
     r.pts.forEach(p=>gElem.appendChild(el("circle",{cx:p.x,cy:p.y,r:3/scale,fill:col,
       style:"pointer-events:none"})));
     const mid=r.pts[Math.floor(r.pts.length/2)];
-    if(routeLen(r)*scale>48){
+    const rotT="tubo "+fmt(routeLen(r));
+    if(routeLen(r)*scale>48&&cabeRot(mid.x,mid.y-9/scale,rotT,11,isSel)){
     const rt=el("text",{x:mid.x,y:mid.y,"font-size":11/scale,fill:col,"text-anchor":"middle",
       dy:-9/scale,style:"pointer-events:none;font-family:var(--mono)"});
-    rt.textContent="tubo "+fmt(routeLen(r)); gElem.appendChild(rt); }
+    rt.textContent=rotT; gElem.appendChild(rt); }
     if(routeLen(r)*scale>48)
-    if(cir){ const ced=el("text",{x:mid.x,y:mid.y,"font-size":9.5/scale,fill:col,"text-anchor":"middle",
+    if(cir&&cabeRot(mid.x,mid.y+7/scale,cedulaDe(cir),9.5,isSel)){ const ced=el("text",{x:mid.x,y:mid.y,"font-size":9.5/scale,fill:col,"text-anchor":"middle",
       dy:7/scale,style:"pointer-events:none;font-family:var(--mono)",opacity:.85});
       ced.textContent=cedulaDe(cir); gElem.appendChild(ced); }
   });
@@ -1369,10 +1445,13 @@ function render(skipPanel){
     const t=el("text",{x:l.x,y:l.y,"font-size":16/scale,fill:isSel?"var(--sel)":"var(--ink)",
       "text-anchor":"middle","font-weight":"700",style:"pointer-events:auto"});
     t.textContent=l.text; g.appendChild(t);
+    cabeRot(l.x,l.y,l.text||" ",16,true);   // el nombre lo puso el usuario: no se oculta, pero SÍ reserva su lugar
     const room=rooms.find(r=>pointInPoly(l,r.poly));
-    if(room){ const a=el("text",{x:l.x,y:l.y+18/scale,"font-size":12/scale,fill:"var(--soft)",
+    if(room){ const areaTxt=(room.area/10000).toFixed(1)+" m²";
+      if(cabeRot(l.x,l.y+18/scale,areaTxt,12,isSel)){
+      const a=el("text",{x:l.x,y:l.y+18/scale,"font-size":12/scale,fill:"var(--soft)",
       "text-anchor":"middle",style:"pointer-events:none;font-family:var(--mono)"});
-      a.textContent=(room.area/10000).toFixed(1)+" m²"; g.appendChild(a); }
+      a.textContent=areaTxt; g.appendChild(a); } }
     gLbl.appendChild(g);
   });
 
@@ -1397,7 +1476,7 @@ function render(skipPanel){
       stroke:isSel?"var(--sel)":"var(--accent)","stroke-width":(isSel?2.5:1.8)/scale}));
     const t=el("text",{x:ph.x,y:ph.y,"font-size":14/scale,"text-anchor":"middle",dy:5/scale,style:"pointer-events:none"});
     t.textContent="📷"; g.appendChild(t);
-    if(ph.nota){ const n=el("text",{x:ph.x,y:ph.y+26/scale,"font-size":10/scale,fill:"var(--soft)",
+    if(ph.nota&&cabeRot(ph.x,ph.y+26/scale,ph.nota.slice(0,20),10,isSel)){ const n=el("text",{x:ph.x,y:ph.y+26/scale,"font-size":10/scale,fill:"var(--soft)",
       "text-anchor":"middle",style:"pointer-events:none"}); n.textContent=ph.nota.slice(0,20); g.appendChild(n); }
     gLbl.appendChild(g);
   });
@@ -1414,8 +1493,7 @@ function render(skipPanel){
   if(hoverSnap){ svg.appendChild(el("circle",{cx:hoverSnap.x,cy:hoverSnap.y,r:8/scale,
     fill:"none",stroke:"var(--accent)","stroke-width":2/scale,style:"pointer-events:none"})); }
 
-  // (aquí se llamaba renderFloorbar(), que nunca existió: lanzaba ReferenceError y
-  //  abortaba render() dejando muertas las 40 líneas siguientes. Ver el cierre kaizen.)
+  renderFloorbar();   // la función que este comentario esperó dos versiones: ya existe
   // guías inteligentes magenta (solo mientras se arrastra)
   if(smartGuides.length){ const gg=el("g",{style:"pointer-events:none"});
     smartGuides.forEach(s=>{ if(s.v!=null) gg.appendChild(el("line",{x1:s.v,y1:vb.y-vb.h,x2:s.v,y2:vb.y+vb.h*2,
@@ -1855,13 +1933,25 @@ function snapWorld(p,fromNode){ // imán: nodo del piso activo > esquina del pis
 // o en navegadores viejos), no se rechaza nada: el filtro nunca estorba.
 const PALMA_PX=45;
 function esPalma(ev){ return ev.pointerType==="touch" && ((ev.width||0)>=PALMA_PX||(ev.height||0)>=PALMA_PX); }
+// --- MODO LÁPIZ (Apple Pencil / S Pen) ---
+// Mientras el lápiz dibuja, la mano no dibuja: todo contacto de dedo se ignora
+// durante una ventana de gracia desde el último trazo del lápiz. Es el reparto
+// de Shapr3D y Procreate — el lápiz traza; pasada la ventana, el dedo recupera
+// el lienzo. Sin lápiz, nada cambia. El hover del Pencil (move sin botones) NO
+// activa la ventana: solo el lápiz tocando, para no congelar un arrastre de dedo.
+const LAPIZ_GRACIA_MS=700;
+let ultimoLapiz=0;
+function anotarLapiz(ev){ if(ev.pointerType==="pen"&&(ev.type==="pointerdown"||ev.buttons>0)) ultimoLapiz=performance.now(); }
+function dedoEnModoLapiz(ev){ return ev.pointerType==="touch" && (performance.now()-ultimoLapiz)<LAPIZ_GRACIA_MS; }
 // --- gestos táctiles: dos dedos = pellizco (zoom) + mover lienzo ---
 const tPointers=new Map(); let pinch=null, wasPinch=false;
 let pinchT0=0, pinchMoved=false, pinchMidX=0, pinchMidY=0;
 let lastTapT=0,lastTapX=0,lastTapY=0,downX=0,downY=0,lpTimer=null;
 svg.addEventListener("pointerdown",ev=>{
+  anotarLapiz(ev);
   if(ev.pointerType!=="touch") return;
   if(esPalma(ev)) return;                 // la mano apoyada no es un dedo: no cuenta para el pellizco
+  if(dedoEnModoLapiz(ev)) return;         // el lápiz está dibujando: el dedo no arma pellizco
   tPointers.set(ev.pointerId,{x:ev.clientX,y:ev.clientY});
   try{ svg.setPointerCapture(ev.pointerId); }catch(_){} // asegura recibir SIEMPRE el pointerup
   if(tPointers.size===2){
@@ -1879,6 +1969,7 @@ svg.addEventListener("pointerdown",ev=>{
   }
 },true);
 svg.addEventListener("pointermove",ev=>{
+  anotarLapiz(ev);
   if(ev.pointerType!=="touch"||!tPointers.has(ev.pointerId)) return;
   tPointers.set(ev.pointerId,{x:ev.clientX,y:ev.clientY});
   if(pinch&&tPointers.size>=2){
@@ -2040,7 +2131,7 @@ function tipCorto(host){ const k=host.getAttribute("data-kind"), id=host.getAttr
     const c=circuitOf(e.circuitId);
     return i.icon+" "+i.name+(e.label?" · "+e.label:"")+(c?" · ⚡"+c.name:""); }
   if(k==="wall"){ const w=doc.walls.find(x=>x.id===id); if(!w)return null;
-    return "🧱 "+fmt(wallLen(w))+(w.curve?" ⌒":"")+" · "+(w.material||""); }
+    return "🧱 "+fmt(cotaPared(w))+(w.curve?" ⌒":"")+" · "+(w.material||""); }
   if(k==="opening"){ const o=doc.openings.find(x=>x.id===id); if(!o)return null;
     return (o.kind==="door"?"🚪 ":"🪟 ")+fmt(o.width); }
   if(k==="route"){ const r=doc.routes.find(x=>x.id===id); if(!r)return null;
@@ -2095,7 +2186,7 @@ svg.addEventListener("pointermove",ev=>{
       if(e.notes) html+=`<br><i>${e.notes.slice(0,60)}</i>`; } }
   else if(k==="wall"){ const wl=doc.walls.find(x=>x.id===id);
     if(wl) html=`<b>🧱 Pared${wl.curve?" curva ⌒":""}</b>${wl.name?" · "+wl.name:""}<br>`+
-      `${fmt(wallLen(wl))} · ${wl.material||"—"}${wl.space?" · "+wl.space:""}`; }
+      `${fmt(cotaPared(wl))} ${modoCotaTxt()} · ${wl.material||"—"}${wl.space?" · "+wl.space:""}`; }
   else if(k==="opening"){ const o=doc.openings.find(x=>x.id===id);
     if(o) html=`<b>${o.kind==="door"?"🚪 Puerta":"🪟 Ventana"}</b><br>Ancho ${fmt(o.width)} · a ${Math.round(o.d||0)} cm del extremo`; }
   else if(k==="route"){ const r=doc.routes.find(x=>x.id===id);
@@ -2127,14 +2218,16 @@ svg.addEventListener("dblclick",async ev=>{
   if(draft){ finishDraft(); return; }
   const host=ev.target.closest&&ev.target.closest('[data-kind="wall"]');
   if(host){ const w=doc.walls.find(x=>x.id===host.getAttribute("data-id"));
-    if(w){ const a=N(w.a); const L=wallLen(w);
-      const v=await pedir("📏 Medida real de la pared (cm):",Math.round(L),"number");
-      if(v&&+v>0){ const ang=angleOf(a,N(w.b));
-        doc.nodes[w.b]={x:Math.round(a.x+Math.cos(ang)*(+v)),y:Math.round(a.y+Math.sin(ang)*(+v))};
-        pushHistory(); render(); } } } });
+    if(w){ const a=N(w.a);
+      const v=await pedir(`📏 Medida ${modoCotaTxt()} de la pared (cm):`,Math.round(cotaPared(w)),"number");
+      if(v&&+v>0){ const objetivo=ejeDesdeCota(w,+v);
+        if(objetivo>0){ const ang=angleOf(a,N(w.b));
+          doc.nodes[w.b]={x:Math.round(a.x+Math.cos(ang)*objetivo),y:Math.round(a.y+Math.sin(ang)*objetivo)};
+          pushHistory(); render(); } } } } });
 
 function onDown(ev){
   if(esPalma(ev)) return;                 // la mano apoyada no dibuja ni selecciona
+  if(dedoEnModoLapiz(ev)) return;         // el lápiz está dibujando: el dedo no dibuja ni selecciona
   if(dragFicha&&dragFicha.activo) return; // un 2º dedo durante el drag de ficha no dibuja
   ev.preventDefault(); try{ svg.setPointerCapture&&svg.setPointerCapture(ev.pointerId); }catch(_){} // si falla no debe abortar la selección
   const w=toWorld(ev);
@@ -2269,7 +2362,13 @@ function startSelect(ev,w){
   // rombo de curvatura (Illustrator): antes que todo
   if(tgt&&tgt.getAttribute&&tgt.getAttribute("data-kind")==="chandle"){
     const wid=tgt.getAttribute("data-id"); const wl=doc.walls.find(x=>x.id===wid);
-    if(wl){ action={type:"chandle",wl,moved:false}; return; }
+    if(wl){ // offset de agarre: la curvatura parte de donde está, no salta al cursor
+      const A=N(wl.a),B=N(wl.b);
+      const mx=(A.x+B.x)/2,my=(A.y+B.y)/2;
+      const Lc=Math.hypot(B.x-A.x,B.y-A.y)||1;
+      const nx=-(B.y-A.y)/Lc, ny=(B.x-A.x)/Lc;
+      const offP=((w.x-mx)*nx+(w.y-my)*ny)*2;
+      action={type:"chandle",wl,dOff:(wl.curve||0)-offP,moved:false}; return; }
   }
   // agarradera de apertura (pequeña y precisa)
   if(tgt&&tgt.getAttribute&&tgt.getAttribute("data-kind")==="ohandle"){
@@ -2337,6 +2436,7 @@ function startSelect(ev,w){
 
 function onMove(ev){
   if(esPalma(ev)) return;                 // el roce de la mano no arrastra nada
+  if(dedoEnModoLapiz(ev)) return;         // el lápiz está dibujando: el roce del dedo no arrastra
   const w=toWorld(ev);
   if(calibMode){ calibMode.cursor=w; if(calibMode.p1) pedirRender(true); return; }
   if(action){
@@ -2369,8 +2469,10 @@ function onMove(ev){
       const mx=(A.x+B.x)/2,my=(A.y+B.y)/2;
       const Lc=Math.hypot(B.x-A.x,B.y-A.y)||1;
       const nx=-(B.y-A.y)/Lc, ny=(B.x-A.x)/Lc;
-      let off=((w.x-mx)*nx+(w.y-my)*ny)*2; // el pico visible está a curve/2
-      if(Math.abs(off)<10) off=0; // imán a "recta"
+      let off=((w.x-mx)*nx+(w.y-my)*ny)*2+(action.dOff||0); // el pico visible está a curve/2; dOff = agarre sin salto
+      // Imán a "recta" en PX DE PANTALLA: en cm de mundo eran 2,4 px en celular y
+      // un temblor de 3 px dejaba curve=12 y un paso de historial fantasma.
+      if(Math.abs(off)*scale<8) off=0;
       wl.curve=Math.round(off); action.moved=true; pedirRender(true); return; }
     if(action.type==="stairmove"){ action.st.x=snapNum(w.x-action.dx);
       action.st.y=snapNum(w.y-action.dy); action.moved=true; pedirRender(true); return; }
@@ -2473,6 +2575,7 @@ function commitTramoExacto(cm){
 
 function onUp(ev){
   if(esPalma(ev)) return;                 // levantar la mano no fija ni cierra nada
+  if(dedoEnModoLapiz(ev)) return;         // el lápiz está dibujando: el dedo no fija ni cierra nada
   if(action){
     if(action.type==="marquee"){
       const r={x1:Math.min(action.x0,action.x1),y1:Math.min(action.y0,action.y1),
@@ -2626,11 +2729,11 @@ function renderInspector(p){
     p.onmouseleave=hideTip;
     return; }
   if(selected.type==="wall"){ const w=doc.walls.find(x=>x.id===selected.id); if(!w){setSel([]);return renderInspector(p);}
-    const L=wallLen(w);
+    const L=wallLen(w); const C=cotaPared(w);
     p.innerHTML=`<div class="kdt">Pared</div>
-      <div class="big">${fmt(L)}</div>
+      <div class="big">${fmt(C)} <span class="muted" style="font-size:12px">${modoCotaTxt()}</span></div>
       ${field("Nombre",`<input id="f_name" value="${w.name||""}" placeholder="p. ej. Muro cocina">`)}
-      ${field("Medida real (cm)",`<div class="row"><input id="f_len" type="number" value="${Math.round(L)}"><button id="f_apply">Aplicar</button></div>`)}
+      ${field(`Medida ${modoCotaTxt()} (cm)`,`<div class="row"><input id="f_len" type="number" value="${Math.round(C)}"><button id="f_apply">Aplicar</button></div>`)}
       ${field("Espacio",`<input id="f_space" value="${w.space||""}" placeholder="Cocina, Sala…">`)}
       ${field("Material",selectHtml("f_mat",Object.keys(MATERIALS),w.material))}
       ${field("Grosor de esta pared (cm)",`<input id="f_th" type="number" min="1" value="${Math.round(grosorDe(w))}">`)}
@@ -2649,12 +2752,14 @@ function renderInspector(p){
     document.getElementById("f_colAuto").onclick=()=>{delete w.color;pushHistory();render();render3dIf();};
     document.getElementById("f_apply").onclick=()=>{ const nl=+document.getElementById("f_len").value;
       if(nl>0){ const Lact=wallLen(w); if(!(Lact>0)) return;
+        const objetivo=ejeDesdeCota(w,nl);
+        if(!(objetivo>0)){ avisar("Esa medida por fuera no alcanza: quedaría más chica que el grosor de las paredes vecinas."); return; }
         // Escalar la pared por k = pedido / actual, curvatura incluida. Así la
         // MEDIDA QUE SE MUESTRA (que en una curva es el ARCO) queda exactamente en
         // lo pedido, y volver a aplicar el mismo número no mueve nada. Antes se
         // colocaba el extremo a esa distancia en línea RECTA: en una pared curva,
         // teclear el número que el propio plano mostraba la alargaba sola.
-        const k=nl/Lact; const a=N(w.a),b=N(w.b);
+        const k=objetivo/Lact; const a=N(w.a),b=N(w.b);
         doc.nodes[w.b]={x:a.x+(b.x-a.x)*k, y:a.y+(b.y-a.y)*k};
         if(w.curve) w.curve=w.curve*k;   // figura semejante: el arco escala igual que la cuerda
         pushHistory(); render(); } };
@@ -2691,7 +2796,7 @@ function renderInspector(p){
     document.getElementById("f_type").onchange=ev=>{e.type=ev.target.value;pushHistory();render();};
     document.getElementById("f_qsel").onclick=()=>{ const tipo=e.type;
       setSel(doc.elements.filter(x=>x.type===tipo&&enPiso(x)).map(x=>({type:"element",id:x.id}))); render(); };
-    document.getElementById("f_del").onclick=()=>{doc.elements=doc.elements.filter(x=>x.id!==e.id);setSel([]);pushHistory();render();};
+    document.getElementById("f_del").onclick=()=>{doc.elements=doc.elements.filter(x=>x.id!==e.id);purgarReferenciasMuertas(doc);setSel([]);pushHistory();render();};
   }
   else if(selected.type==="opening"){ const o=doc.openings.find(x=>x.id===selected.id); if(!o){setSel([]);return renderInspector(p);}
     const wp=doc.walls.find(x=>x.id===o.wallId); const Lw=wp?Math.round(wallLen(wp)):200;
@@ -3095,7 +3200,7 @@ function cotTotales(){
 
 let _statusSig="";
 function renderStatus(){ const s=document.getElementById("status");
-  const html=`<span>zoom ${(100/vb.w*1400|0)/1}%</span><span>paredes ${doc.walls.length}</span><span>ref 1ª: ${doc.walls.length?fmt(wallLen(doc.walls[0])):"—"}</span>${(doc.pisos&&doc.pisos.length>1)?`<span>🏢 ${((doc.pisos.find(p=>p.id===doc.pisoActivo)||{}).nombre)||""}</span>`:""}
+  const html=`<span>zoom ${(100/vb.w*1400|0)/1}%</span><span>paredes ${doc.walls.length}</span><span>ref 1ª: ${doc.walls.length?fmt(cotaPared(doc.walls[0])):"—"}</span><span>📏 ${modoCotaTxt()}</span>${(doc.pisos&&doc.pisos.length>1)?`<span>🏢 ${((doc.pisos.find(p=>p.id===doc.pisoActivo)||{}).nombre)||""}</span>`:""}
   <span>escala 1px≈${(1/scale).toFixed(1)}cm</span><span>${storageOK?"autosave ✓":"memoria"}</span>`;
   if(html===_statusSig) return; // mismo texto: no rehacer el DOM en cada movimiento
   _statusSig=html; s.innerHTML=html; }
@@ -3775,6 +3880,16 @@ document.getElementById("xrayBtn").onclick=()=>{
 document.getElementById("xraySlider").oninput=e=>{ settings.xray3d=+e.target.value; scheduleSave(); aplicarXray(); };
 document.getElementById("gridBtn").onclick=function(){ settings.grid=!settings.grid; this.classList.toggle("on",settings.grid); render(); };
 document.getElementById("snapBtn").onclick=function(){ settings.snap=!settings.snap; this.classList.toggle("on",settings.snap); };
+// ¿Qué mide la cota? Es un ajuste de VISTA: no toca la geometría ni el historial,
+// solo el número que se rotula. Persiste en settings para que el plano se lea
+// igual mañana, y arranca en "al eje" para que ningún plano guardado cambie solo.
+function actualizarCotaBtn(){ const b=document.getElementById("cotaBtn"); if(b) b.textContent="📏 "+modoCotaTxt(); }
+document.getElementById("cotaBtn").onclick=()=>{ const orden=["eje","dentro","fuera"];
+  settings.modoCota=orden[(orden.indexOf(settings.modoCota||"eje")+1)%3];
+  actualizarCotaBtn(); scheduleSave(); render();
+  avisar(settings.modoCota==="eje"?"📏 La cota mide AL EJE: por el centro del muro (el número de siempre).":
+         settings.modoCota==="dentro"?"📏 La cota mide POR DENTRO: la luz libre entre paredes, como la cinta dentro del cuarto.":
+         "📏 La cota mide POR FUERA: de cara externa a cara externa del muro."); };
 document.getElementById("lockBtn").onclick=function(){ settings.lock45=!settings.lock45; this.classList.toggle("on",settings.lock45); };
 document.getElementById("gridBtn").classList.toggle("on",settings.grid);
 document.getElementById("themeBtn").onclick=()=>{ const cur=document.documentElement.getAttribute("data-theme");
@@ -3831,7 +3946,7 @@ function exportDXF(){
   doc.walls.forEach(w=>{ if(!enPiso(w))return; const a=N(w.a),b=N(w.b); if(!a||!b)return;
     if(w.curve) poly(wallPts(w,16),"PAREDES"); else line(a.x,a.y,b.x,b.y,"PAREDES");
     const L=wallLen(w); const mp=wallPointAt(w,L/2);
-    text(mp.x,mp.y-12,10,fmt(L),"TEXTOS"); });
+    text(mp.x,mp.y-12,10,fmt(cotaPared(w)),"TEXTOS"); });
   doc.openings.forEach(o=>{ const w=doc.walls.find(x=>x.id===o.wallId); if(!w||!enPiso(w))return;
     const L=wallLen(w); const dpos=Math.max(o.width/2,Math.min(o.d!=null?o.d:L/2,L-o.width/2));
     const p1=wallPointAt(w,dpos-o.width/2), p2=wallPointAt(w,dpos+o.width/2);
@@ -4193,7 +4308,7 @@ function deleteSelected(){ if(!selection.length)return;
       if(ph&&ph.fotoId&&!doc.photos.some(x=>x.fotoId===ph.fotoId)) fotoDel(ph.fotoId); }
     else if(s.type==="stair") doc.stairs=doc.stairs.filter(x=>x.id!==s.id);
   });
-  doc.elements.forEach(sw=>{ if(sw.controla) sw.controla=sw.controla.filter(id=>doc.elements.some(x=>x.id===id)); });
+  purgarReferenciasMuertas(doc);
   setSel([]); pushHistory(); render(); }
 
 /* ===================== Seed / init ===================== */
@@ -4223,11 +4338,46 @@ function aplicarModo(){ const m=esMovil(), antes=document.body.classList.contain
 let sheetState="peek";
 function setSheet(st){ sheetState=st; const sd=document.querySelector(".side"); if(!sd)return;
   sd.classList.toggle("mid",st==="mid"); sd.classList.toggle("full",st==="full"); actualizarSheetHint(); }
+// --- Pisos de la obra ---
+// Toda la infraestructura multi-piso (pisos, pisoActivo, enPiso, el calco gris
+// de la planta de abajo) existía y funcionaba; lo que nunca existió fue la
+// PUERTA: nada en la interfaz creaba ni cambiaba plantas. Esta píldora es esa
+// puerta. Cambiar de planta es navegación (no toca el historial); crear o
+// renombrar sí son pasos de undo.
+function renderFloorbar(){ const b=document.getElementById("floorbtn"); if(!b) return;
+  const ps=doc.pisos||[]; const p=ps.find(x=>x.id===doc.pisoActivo);
+  const txt="🏢 "+((p&&p.nombre)||"Planta 1")+(ps.length>1?" · "+(pisoIdx(doc.pisoActivo)+1)+"/"+ps.length:"");
+  if(b.textContent!==txt) b.textContent=txt;
+}
+async function menuPisos(){
+  const ops=(doc.pisos||[]).map(p=>({k:"go:"+p.id,txt:(p.id===doc.pisoActivo?"✓ ":"　")+"🏢 "+(p.nombre||"Planta")}));
+  ops.push({k:"ren",txt:"✎ Renombrar esta planta"});
+  ops.push({k:"add",txt:"＋ Agregar una planta"});
+  const k=await pedirOpcion("Pisos de la obra",ops);
+  if(!k) return;
+  if(k.indexOf("go:")===0){ const id=k.slice(3);
+    if(id!==doc.pisoActivo){ doc.pisoActivo=id; setSel([]); draft=null; scheduleSave(); render();
+      const p=(doc.pisos||[]).find(x=>x.id===id);
+      avisar("🏢 Estás dibujando en "+(((p&&p.nombre)||"esta planta"))+"."); }
+    return; }
+  if(k==="ren"){ const p=(doc.pisos||[]).find(x=>x.id===doc.pisoActivo); if(!p) return;
+    const nombre=await pedir("Nombre de esta planta:",p.nombre||"");
+    if(nombre==null||!String(nombre).trim()) return;
+    p.nombre=String(nombre).trim().slice(0,18); pushHistory(); render(); return; }
+  if(k==="add"){ const n=(doc.pisos||[]).length+1;
+    const nombre=await pedir("Nombre de la planta nueva:","Planta "+n);
+    if(nombre==null) return;
+    const p={id:uid("p"),nombre:(String(nombre).trim()||("Planta "+n)).slice(0,18)};
+    doc.pisos.push(p); doc.pisoActivo=p.id; setSel([]); draft=null;
+    pushHistory(); render();
+    avisar("🏢 "+p.nombre+" creada — lo que dibujés ahora vive aquí. La planta de abajo se ve en gris, de calco."); }
+}
 async function abrirMenuMovil(){
   const k=await pedirOpcion("Menú",[
     {k:"grid",txt:(settings.grid?"✓ ":"　")+"▤ Grilla"},
     {k:"snap",txt:(settings.snap?"✓ ":"　")+"🧲 Imán (snap)"},
     {k:"lock",txt:(settings.lock45?"✓ ":"　")+"📐 Bloqueo 45°"},
+    {k:"cota",txt:"📏 Cota: "+modoCotaTxt()},
     {k:"exp",txt:"⇩ Exportar (PDF · JSON · DXF…)"},
     {k:"imp",txt:"⇧ Importar respaldo JSON"},
     {k:"fondo",txt:"🖼 Fondo de calco"},
@@ -4245,6 +4395,7 @@ async function abrirMenuMovil(){
     grid:()=>document.getElementById("gridBtn").click(),
     snap:()=>document.getElementById("snapBtn").click(),
     lock:()=>document.getElementById("lockBtn").click(),
+    cota:()=>{ const b=document.getElementById("cotaBtn"); if(b) b.click(); },
     exp:()=>exportMenu(), imp:()=>document.getElementById("fileInput").click(),
     fondo:()=>document.getElementById("fondoBtn").onclick(),
     blk:()=>showBloques(), proj:()=>showProjects(),
@@ -4261,6 +4412,7 @@ async function abrirMenuMovil(){
   }; if(acc[k]) acc[k]();
 }
 document.getElementById("menuMovil").onclick=abrirMenuMovil;
+document.getElementById("floorbtn").onclick=menuPisos;
 document.getElementById("fabU").onclick=undo;
 document.getElementById("fabR").onclick=redo;
 document.getElementById("fabOK").onclick=()=>{ if(pendingPlace){ const pp=pendingPlace; pendingPlace=null; setTool("select"); colocarElemento(pp.cat,{x:pp.x,y:pp.y}); return; } finishDraft(); };
@@ -4362,6 +4514,7 @@ try{ const qP=new URLSearchParams(location.search).get("proyecto");
 })();
 normalizeDoc(doc);
 aplicarModo();
+actualizarCotaBtn();   // el botón refleja el modo guardado desde el arranque
 setTool("select");
 requestAnimationFrame(()=>{ updateScale(); fitView(); history=[snap()]; hi=0; updateProjLabel(); render(); scheduleSave(); actualizarBotonDescargar();
   if(!settings.tutoVisto) showTutorial();
