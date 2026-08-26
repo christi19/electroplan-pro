@@ -2001,8 +2001,13 @@ function endTouch(ev){
 window.addEventListener("pointerup",endTouch,true);
 window.addEventListener("pointercancel",endTouch,true);
 window.addEventListener("blur",()=>{ tPointers.clear(); pinch=null; wasPinch=false; smartGuides.length=0; });
-// gesto cancelado por el sistema (notificación, gesto del SO): el press de pared muere con él
-window.addEventListener("pointercancel",ev=>{ if(ev.pointerId===paredPressId) paredPressId=null; });
+// gesto cancelado por el sistema (notificación, gesto del SO): limpiar el trazo en curso, no solo el press
+window.addEventListener("pointercancel",ev=>{
+  if(ev.pointerId===paredPressId) paredPressId=null;
+  // Si el puntero que se canceló era el que dibujaba, revertir el trazo a medias.
+  if(draft&&draft.type==="wall"){ draft=null; medidaTecleada=""; pruneNodes(); render(); }
+  if(pendingPlace){ pendingPlace=null; render(); }
+});
 // --- Zoom nativo (pellizco) bloqueado en TODA la app ---
 // iPad ignora user-scalable=no en pestañas: el pinch achicaba la interfaz completa y desacomodaba
 // los módulos. Ahora cada zona interpreta su propio pellizco (lienzo/3D → zoom del plano;
@@ -2156,6 +2161,8 @@ svg.addEventListener("pointerup",ev=>{
   if(ev.pointerType!=="touch") return;
   clearTimeout(lpTimer);
   if(wasPinch) return;
+  // No hacer zoom si hay un trazo en curso o una colocación pendiente: evita interferencia.
+  if(draft||pendingPlace) return;
   if(Math.hypot(ev.clientX-downX,ev.clientY-downY)>14){ lastTapT=0; return; }
   const now=Date.now();
   if(now-lastTapT<300&&Math.hypot(ev.clientX-lastTapX,ev.clientY-lastTapY)<26){
@@ -2532,7 +2539,12 @@ function commitTramoPared(ev){
   const an=draft.startNode;
   const bn=sp.node||findOrCreateNode(b);
   const A=N(an),B=N(bn);
-  if(bn===an||!A||!B||Math.hypot(B.x-A.x,B.y-A.y)<2){ render(); return; } // soltó sobre el ancla actual: nada que fijar
+  if(bn===an||!A||!B) { render(); return; }
+  // Guard de "tramo nulo": 8px de pantalla, tope máximo de 4cm de mundo.
+  // El patrón exacto que ya usa refSnapPoint — evita rechazar en silencio un
+  // tramo corto deliberado con zoom cercano, y sigue protegiendo vs. taps accidentales.
+  const distCm=Math.hypot(B.x-A.x,B.y-A.y); const tol=Math.min(8/scale,4);
+  if(distCm<tol){ render(); return; }
   const wid=uid("w");
   doc.walls.push({id:wid,a:an,b:bn,name:"",space:draft.space||"",material:"Ladrillo",piso:doc.pisoActivo});
   addXP(6); const created=(draft.created||[]).concat(wid);
@@ -2551,7 +2563,9 @@ function commitTramoExacto(cm){
   if(!draft||draft.type!=="wall") return false;
   const a=N(draft.startNode); if(!a) return false;
   const c=draft.cursor;
-  if(Math.hypot(c.x-a.x,c.y-a.y)<1){
+  // Guard de "sin dirección": mismo patrón que commitTramoPared — 8px pantalla / 4cm mundo.
+  const distCm=Math.hypot(c.x-a.x,c.y-a.y); const tol=Math.min(8/scale,4);
+  if(distCm<tol){
     avisar("Movete hacia donde va la pared y volvé a escribir la medida."); return false; }
   const dir=applyLock(a,c,false);                  // respeta el candado de 45°
   const ang=Math.atan2(dir.y-a.y,dir.x-a.x);
@@ -3410,7 +3424,7 @@ function avisar(msg){ const d=document.createElement("div");
   // En móvil el toast sube por encima de la hoja y el rail (avisarCot ya lo
   // hacía; este quedaba ENTERRADO debajo y los avisos no se veían).
   const abajo=document.body.classList.contains("mobile")?"calc(150px + env(safe-area-inset-bottom))":"26px";
-  d.style.cssText="position:fixed;left:50%;bottom:"+abajo+";transform:translateX(-50%);background:var(--panel);border:1px solid var(--accent);color:var(--ink);padding:10px 16px;border-radius:10px;z-index:120;font-size:13px;box-shadow:0 8px 24px rgba(0,0,0,.4);max-width:82%;text-align:center";
+  d.style.cssText="position:fixed;left:50%;bottom:"+abajo+";transform:translateX(-50%);background:var(--panel);border:1px solid var(--accent);color:var(--ink);padding:10px 16px;border-radius:10px;z-index:120;font-size:13px;box-shadow:0 8px 24px rgba(0,0,0,.4);max-width:82%;text-align:center;pointer-events:none";
   d.textContent=msg; document.body.appendChild(d); setTimeout(()=>d.remove(),3400); }
 
 // toast del carrito: singleton (las altas en ráfaga actualizan el MISMO aviso) y tocable → abre la cotización
