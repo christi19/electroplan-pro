@@ -105,6 +105,7 @@
   .zoombar{position:absolute;right:12px;bottom:12px;display:flex;flex-direction:column;gap:6px;}
   .zoombar button{width:40px;height:40px;justify-content:center;padding:0;font-size:18px;background:var(--panel);}
   .zoombar button.on{border-color:var(--accent);color:var(--accent);}
+  .zoombar #btnSumar{width:44px;height:44px;} /* control nuevo: blanco táctil ≥44 (regla 18) */
   #zcli{flex-direction:column;gap:1px;height:auto;min-height:40px;padding:5px 0 4px;line-height:1;}
   #zcli .ic{font-size:18px;}
   #zcli .lbl{font-size:8.5px;font-weight:700;letter-spacing:.02em;}
@@ -507,6 +508,8 @@
       <button id="zin" title="Acercar" aria-label="Acercar">＋</button>
       <button id="zout" title="Alejar" aria-label="Alejar">－</button>
       <button id="zfit" title="Ajustar">⤢</button>
+      <button id="btnSumar" style="display:none" aria-pressed="false" aria-label="Sumar a la selección"
+        title="Sumar a la selección: con esto prendido, cada objeto que toqués se agrega al grupo (tocarlo de nuevo lo quita)"><span class="ic">⊕</span><span class="lbl">Sumar</span></button>
       <button id="zcli" title="Vista cliente: plano limpio (oculta cotas, anclas y colores de circuito)"><span class="ic">👁</span><span class="lbl">Cliente</span></button>
       <button id="zpng" title="Descargar PNG del plano (ideal para WhatsApp)">⤓</button>
     </div>
@@ -805,7 +808,7 @@ function findOrCreateNode(p,opts){
   if(tol>0) for(const id of okN){ const n=doc.nodes[id]; if(n&&dist(n,p)<tol) return id; }
   const id=uid("n"); doc.nodes[id]={x:p.x,y:p.y}; return id;
 }
-function nearestNode(p){ let best=null,bd=14/scale;
+function nearestNode(p,maxd){ let best=null,bd=maxd||14/scale;  // maxd: la selección pasa el radio del puntero; los snaps de dibujo siguen en 14
   const okN=new Set(); doc.walls.forEach(w=>{ if(enPiso(w)){ okN.add(w.a); okN.add(w.b); } });
   if(draft&&draft.startNode) okN.add(draft.startNode);
   for(const id in doc.nodes){ if(!okN.has(id))continue; const d=dist(doc.nodes[id],p); if(d<bd){bd=d;best=id;} } return best; }
@@ -1553,7 +1556,13 @@ function render(skipPanel){
   const sb2=document.getElementById("selbar");
   // También con el Marco: es LA herramienta de seleccionar varios, y dejaba la
   // selección sin un solo botón para actuar sobre ella.
-  if(sb2){ if(selection.length&&(tool==="select"||tool==="marquee")&&!linkMode){
+  // &&!action: mientras hay un gesto vivo (arrastre, marquesina) la barra NO
+  // existe — nacía bajo el dedo en el pointerdown y el click sintético del mismo
+  // toque podía pulsarle un botón (🗑 incluido, el ROMPE de la sesión (c)).
+  // _nacio marca la transición oculta→visible (solo móvil): recién nacida, la
+  // barra rechaza los clicks de ese mismo toque durante 350 ms.
+  if(sb2){ if(selection.length&&(tool==="select"||tool==="marquee")&&!linkMode&&!action){
+      const sbNace=sb2.style.display!=="flex";
       sb2.innerHTML=`<span style="align-self:center;font-family:var(--mono);font-size:11px;color:var(--soft);padding:0 8px">${selection.length} sel.</span>`+
         (selection.length===1?`<button title="Copiar formato a otros objetos (pincel)" id="sb_fmt">🖌</button>`:"")+
         `<button title="Duplicar (Ctrl+D)" id="sb_dup">⧉</button>`+
@@ -1564,14 +1573,19 @@ function render(skipPanel){
         `<button title="Eliminar (Supr)" id="sb_del" class="danger">🗑</button>`+
         `<button title="Deseleccionar (Esc)" id="sb_x">✕</button>`;
       sb2.style.display="flex";
-      const _fb=sb2.querySelector("#sb_fmt"); if(_fb) _fb.onclick=copiarFormato;
-      sb2.querySelector("#sb_dup").onclick=duplicateSelection;
-      sb2.querySelector("#sb_mir").onclick=mirrorSelection;
-      sb2.querySelector("#sb_rot").onclick=()=>rotateSelection(90);
-      sb2.querySelector("#sb_rotx").onclick=()=>rotateSelection(null);
-      sb2.querySelector("#sb_blk").onclick=guardarBloque;
-      sb2.querySelector("#sb_del").onclick=deleteSelected;
-      sb2.querySelector("#sb_x").onclick=()=>{ setSel([]); render(); };
+      if(sbNace&&document.body.classList.contains("mobile")) sb2._nacio=performance.now();
+      // El guardián vive EN CADA BOTÓN, no en el contenedor: un listener en el
+      // contenedor lo volvía imán del ajuste táctil de Chromium y se robaba
+      // toques del lienzo vecino (medido: un tap a 7 px del borde caía en él).
+      const gN=f=>e=>{ if(sb2._nacio&&performance.now()-sb2._nacio<350){ e.preventDefault(); return; } f(); };
+      const _fb=sb2.querySelector("#sb_fmt"); if(_fb) _fb.onclick=gN(copiarFormato);
+      sb2.querySelector("#sb_dup").onclick=gN(duplicateSelection);
+      sb2.querySelector("#sb_mir").onclick=gN(mirrorSelection);
+      sb2.querySelector("#sb_rot").onclick=gN(()=>rotateSelection(90));
+      sb2.querySelector("#sb_rotx").onclick=gN(()=>rotateSelection(null));
+      sb2.querySelector("#sb_blk").onclick=gN(guardarBloque);
+      sb2.querySelector("#sb_del").onclick=gN(deleteSelected);
+      sb2.querySelector("#sb_x").onclick=gN(()=>{ setSel([]); render(); });
     } else sb2.style.display="none"; }
   // fantasma de colocación pendiente (dos toques en móvil)
   if(pendingPlace){ const et=(settings.varByCat[pendingPlace.cat]&&CATS[pendingPlace.cat].includes(settings.varByCat[pendingPlace.cat]))?settings.varByCat[pendingPlace.cat]:CATS[pendingPlace.cat][0];
@@ -1579,6 +1593,12 @@ function render(skipPanel){
     gh.appendChild(el("circle",{cx:pendingPlace.x,cy:pendingPlace.y,r:20/scale,fill:"var(--panel)",stroke:"var(--accent)","stroke-width":2/scale,"stroke-dasharray":(5/scale)+" "+(4/scale)}));
     const gt=el("text",{x:pendingPlace.x,y:pendingPlace.y,"font-size":18/scale,"text-anchor":"middle",dy:6/scale,style:"pointer-events:none"});
     gt.textContent=elInfo(et).icon; gh.appendChild(gt); svg.appendChild(gh); }
+  // Botón ⊕ Sumar: existe solo con las herramientas que seleccionan, nunca en
+  // vista cliente ni en modo vínculo (espejo de la condición del selbar).
+  const bS=document.getElementById("btnSumar");
+  if(bS){ const on=(tool==="select"||tool==="marquee")&&!vistaCliente&&!linkMode;
+    bS.style.display=on?"":"none"; bS.classList.toggle("on",modoSumar);
+    bS.setAttribute("aria-pressed",modoSumar?"true":"false"); }
   // FABs ✔/✕ (móvil): visibles con un trazo en curso o una colocación pendiente
   const fOK=document.getElementById("fabOK"),fX=document.getElementById("fabX");
   if(fOK){ const on=!!draft||!!pendingPlace; fOK.style.display=on?"":"none"; fX.style.display=on?"":"none"; }
@@ -1864,9 +1884,10 @@ let fmtClip=null, pintarFormato=false; // cuentagotas / copiar formato
 let smartGuides=[]; // guías inteligentes (magenta) mientras se arrastra
 let paredPressId=null; // pointer que inició el gesto de pared EN el lienzo (el up solo fija tramo si nació aquí)
 let vistaCliente=false; // ✨ plano limpio para enseñar al cliente (oculta cotas, anclas y técnica)
+let modoSumar=false;    // ⊕ SUMAR: cada tap agrega/quita de la selección (el ctrl+clic del dedo, regla 21)
 // Cursor flecha negra estilo Illustrator para "Elegir" (solo escritorio; en táctil no hay cursor)
 const ARROW_CUR="url(\"data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='22'%20height='22'%20viewBox='0%200%2024%2024'%3E%3Cpath%20d='M4%203L4%2019L8.5%2015L11%2021L14%2020L11.5%2014L18%2014Z'%20fill='%23000'%20stroke='%23fff'%20stroke-width='1.3'%20stroke-linejoin='round'/%3E%3C/svg%3E\") 4 3, default";
-function setTool(t){ const bothSel=(tool==="select"||tool==="marquee")&&(t==="select"||t==="marquee"); tool=t; draft=null; medidaTecleada=""; pendingPlace=null; pruneNodes(); if(!bothSel) setSel([]); pintarFormato=false;
+function setTool(t){ const bothSel=(tool==="select"||tool==="marquee")&&(t==="select"||t==="marquee"); tool=t; draft=null; medidaTecleada=""; pendingPlace=null; pruneNodes(); if(!bothSel){ setSel([]); modoSumar=false; } pintarFormato=false; // Sumar muere con el MISMO criterio que la selección: sobrevive Elegir↔Marco, muere al irse a dibujar
   if(CATS[t]&&!settings.dragVisto){ settings.dragVisto=true; scheduleSave();
     avisar("💡 Tip: también podés ARRASTRAR la ficha de la barra directo al plano, como en Duolingo."); }
   document.querySelectorAll(".tool").forEach(b=>b.classList.toggle("on",b.dataset.tool===t));
@@ -1999,6 +2020,11 @@ function esPalma(ev){ return ev.pointerType==="touch" && ((ev.width||0)>=PALMA_P
 // y el dedo real nunca lo es — el mismo hueco que dejó pasar el rechazo de palma.
 // Por capacidad, no por dispositivo: el dedo tiembla, el mouse no.
 function arrastreMinPx(tipo){ return tipo==="touch" ? 8 : tipo==="pen" ? 4 : 3; }
+// Radio de ACIERTO de la selección, en px de pantalla, por capacidad del puntero
+// (espejo exacto de arrastreMinPx). El dedo tapa lo que toca: ±22 px del eje son
+// 44 px de blanco efectivo — el mínimo táctil. El mouse apunta fino y conserva
+// su precisión de siempre (10 px < los ±11 del trazo gemelo de una pared).
+function radioSelPx(tipo){ return tipo==="touch" ? 22 : tipo==="pen" ? 14 : 10; }
 const LAPIZ_GRACIA_MS=700;
 let arrOrigen=null;   // dónde nació el gesto, en px de pantalla (histéresis del arrastre)
 let ultimoLapiz=0;
@@ -2061,10 +2087,27 @@ function endTouch(ev){
 // en WINDOW (no en el svg): aunque el dedo se levante fuera del lienzo, JAMÁS quedan dedos fantasma
 window.addEventListener("pointerup",endTouch,true);
 window.addEventListener("pointercancel",endTouch,true);
-window.addEventListener("blur",()=>{ tPointers.clear(); pinch=null; wasPinch=false; smartGuides.length=0; });
+window.addEventListener("blur",()=>{
+  // Perder el foco suelta el gesto SALVO que el dedo dueño siga apoyado: en el
+  // iframe de la app, tocar el cromo del padre dispara blur mientras el arrastre
+  // sigue vivo (los pointer events no dependen del foco) — matarlo ahí sería
+  // reintroducir el corte a la mitad. Alt-tab con mouse sí consolida (el mouse
+  // nunca está en tPointers).
+  if(action&&!(arrOrigen&&tPointers.has(arrOrigen.pid))) soltarAction();
+  tPointers.clear(); pinch=null; wasPinch=false; smartGuides.length=0; });
+// El gesto murió sin su pointerup (cancel del SO, blur, palma al soltar): se
+// consolida lo movido (un paso de undo) y se limpia TODO. Una action que
+// sobrevive a su dedo era la causa medida del "algo queda pegado al dedo":
+// el siguiente toque revivía el arrastre viejo y la pared TELEPORTABA.
+function soltarAction(){ if(!action) return;
+  if(action.moved) pushHistory();
+  action=null; hoverSnap=null; smartGuides.length=0; arrOrigen=null; render(); }
 // gesto cancelado por el sistema (notificación, gesto del SO): limpiar el trazo en curso, no solo el press
 window.addEventListener("pointercancel",ev=>{
   if(ev.pointerId===paredPressId) paredPressId=null;
+  // Solo si el cancelado es el DUEÑO: la cancelación de una palma apoyada no
+  // puede matar el arrastre vivo del dedo que sí está trabajando.
+  if(action&&arrOrigen&&ev.pointerId===arrOrigen.pid) soltarAction();
   // Si el puntero que se canceló era el que dibujaba, revertir el trazo a medias.
   if(draft&&draft.type==="wall"){ draft=null; medidaTecleada=""; pruneNodes(); render(); }
   if(pendingPlace){ pendingPlace=null; render(); }
@@ -2221,15 +2264,11 @@ svg.addEventListener("pointermove",ev=>{ if(ev.pointerType!=="touch")return;
 svg.addEventListener("pointerup",ev=>{
   if(ev.pointerType!=="touch") return;
   clearTimeout(lpTimer);
-  if(wasPinch) return;
-  // No hacer zoom si hay un trazo en curso o una colocación pendiente: evita interferencia.
-  if(draft||pendingPlace) return;
-  if(Math.hypot(ev.clientX-downX,ev.clientY-downY)>14){ lastTapT=0; return; }
-  const now=Date.now();
-  if(now-lastTapT<300&&Math.hypot(ev.clientX-lastTapX,ev.clientY-lastTapY)<26){
-    zoomAt(ev.clientX,ev.clientY,0.55); lastTapT=0; return; }
-  lastTapT=now; lastTapX=ev.clientX; lastTapY=ev.clientY;
 });
+// El detector del DOBLE TOQUE (zoom) vive más abajo, registrado en window DESPUÉS
+// de onUp: necesita ver la selección que ESTE tap acaba de resolver, y en window
+// el orden de registro es el orden de disparo. Cuando vivía acá (svg, bubble)
+// corría ANTES que onUp y bajo el Marco decidía con la selección vieja.
 
 // --- tooltip flotante al pasar el cursor (solo mouse) ---
 function hideTip(){ const t=document.getElementById("tip"); if(t) t.style.display="none"; }
@@ -2282,6 +2321,24 @@ svg.addEventListener("pointermove",ev=>{
 svg.addEventListener("pointerdown",onDown);
 svg.addEventListener("pointermove",onMove);
 window.addEventListener("pointerup",onUp);
+// Doble toque = zoom, decidido DESPUÉS de que onUp resolvió el tap (por eso se
+// registra tras onUp). Con algo seleccionado bajo Elegir/Marco, un tap-tap es
+// reintento o ajuste, no navegación: ni zoom ni cadena — era el zoom ×1.8 no
+// pedido que hacía brincar el plano al corregir un tap fallado. El doble toque
+// en el VACÍO (que deselecciona en este mismo up) sigue zoomeando.
+window.addEventListener("pointerup",ev=>{
+  if(ev.pointerType!=="touch") return;
+  if(!svg.contains(ev.target)) return;          // doble toque sobre botones/paneles: jamás zoomea
+  if(esPalma(ev)||dedoEnModoLapiz(ev)) return;
+  if(wasPinch) return;
+  if(draft||pendingPlace) return;               // trazo o colocación en curso: sin interferencia
+  if(Math.hypot(ev.clientX-downX,ev.clientY-downY)>14){ lastTapT=0; return; }
+  if((tool==="select"||tool==="marquee")&&selection.length){ lastTapT=0; return; }
+  const now=Date.now();
+  if(now-lastTapT<300&&Math.hypot(ev.clientX-lastTapX,ev.clientY-lastTapY)<26){
+    zoomAt(ev.clientX,ev.clientY,0.55); lastTapT=0; return; }
+  lastTapT=now; lastTapX=ev.clientX; lastTapY=ev.clientY;
+});
 svg.addEventListener("dblclick",async ev=>{
   if(draft){ finishDraft(); return; }
   const host=ev.target.closest&&ev.target.closest('[data-kind="wall"]');
@@ -2297,8 +2354,12 @@ function onDown(ev){
   if(esPalma(ev)) return;                 // la mano apoyada no dibuja ni selecciona
   if(dedoEnModoLapiz(ev)) return;         // el lápiz está dibujando: el dedo no dibuja ni selecciona
   if(dragFicha&&dragFicha.activo) return; // un 2º dedo durante el drag de ficha no dibuja
+  // Un 3er dedo durante el pellizco moría raro: su down armaba una action cuyo
+  // up se tragaba endTouch en captura — quedaba un arrastre fantasma pegado al
+  // siguiente toque. Muere acá, ANTES de robarse arrOrigen (el dueño del gesto).
+  if(ev.pointerType==="touch"&&tPointers.size>=2&&pinch) return;
   ev.preventDefault(); try{ svg.setPointerCapture&&svg.setPointerCapture(ev.pointerId); }catch(_){} // si falla no debe abortar la selección
-  arrOrigen={x:ev.clientX,y:ev.clientY,tipo:ev.pointerType}; // origen del gesto: lo usa la histéresis de onMove
+  arrOrigen={x:ev.clientX,y:ev.clientY,tipo:ev.pointerType,pid:ev.pointerId}; // origen y DUEÑO del gesto: histéresis + solo su dedo lo mueve o lo suelta
   const w=toWorld(ev);
   // vista cliente = solo lectura: solo navegar (mano, botón medio, Shift+arrastre); nada se edita
   if(vistaCliente && !(tool==="pan"||ev.button===1||((tool==="select"||tool==="marquee")&&ev.shiftKey))){
@@ -2339,8 +2400,13 @@ function onDown(ev){
     // — y con la barra de acciones ya visible eso es una trampa.
     const h=ev.target.closest&&ev.target.closest("[data-kind]");
     const hk=h&&h.getAttribute("data-kind"), hid=h&&h.getAttribute("data-id");
+    // Con ⊕ Sumar, tocar un objeto difiere el toggle al soltar (igual que en
+    // Elegir): tap = sumar/quitar, arrastre sobre uno elegido = mover el grupo.
+    if(modoSumar&&hk&&hid&&SEL_KINDS[hk]){ action={type:"toggleTap",k:hk,id:hid,w0:{x:w.x,y:w.y}}; return; }
     if(selection.length&&hk&&hid&&isSelected(hk,hid)){ beginMoveSel(w); return; }
-    action={type:"marquee",x0:w.x,y0:w.y,x1:w.x,y1:w.y}; render(); return; }
+    // downK/downId: qué había bajo el dedo al apretar. Si el gesto queda en TAP,
+    // el up lo usa para SELECCIONAR (antes el tap del Marco no podía elegir nada).
+    action={type:"marquee",x0:w.x,y0:w.y,x1:w.x,y1:w.y,downK:hk||null,downId:hid||null}; render(); return; }
   if(tool==="select"){ return startSelect(ev,w); }
 
   if(tool==="wall"){
@@ -2422,6 +2488,9 @@ function colocarElemento(cat,sp){
 // 14 px de un vértice no se podía seleccionar de ninguna forma — y si el vértice
 // le quedaba justo debajo, ningún zoom la rescataba.
 const OBJ_ENCIMA={element:1,opening:1,label:1,text:1,photo:1,stair:1,route:1,dim:1};
+// Qué kinds son OBJETOS seleccionables (las agarraderas chandle/ohandle/txresize
+// y los nodos no lo son). La comparten el tap del Marco y el modo ⊕ Sumar.
+const SEL_KINDS={wall:1,element:1,label:1,text:1,opening:1,route:1,stair:1,photo:1,dim:1};
 function startSelect(ev,w){
   const tgt=ev.target;
   // modo pincel (cuentagotas): aplicar el formato copiado a objetos del mismo tipo
@@ -2457,12 +2526,20 @@ function startSelect(ev,w){
   // El ancla solo agarra si el usuario la puede VER y si su capa está viva.
   // anclaDibujada() es la misma regla que usa render(): así nunca hay un agarre
   // donde no hay nada pintado, ni sobre una capa que el usuario mandó a bloquear.
-  const nn=capaViva("structure")?nearestNode(w):null;
+  const nn=capaViva("structure")?nearestNode(w,Math.max(14,radioSelPx(ev.pointerType))/scale):null;
   const ancla=(nn&&anclaDibujada(nn)&&!(k&&id&&OBJ_ENCIMA[k]))?nn:null;
-  // Ctrl+clic sobre una esquina: el ancla no es un objeto seleccionable, así que
+  // Ctrl del mouse y ⊕ Sumar del dedo son el MISMO modificador (regla 21).
+  const sumar=ctrl||modoSumar;
+  // Ctrl/⊕ sobre una esquina: el ancla no es un objeto seleccionable, así que
   // lo que el usuario quiere sumar a la selección es la pared que pasa por ahí.
-  if(ctrl&&(!k||!id||k==="node")){ const nw=nearestWall(w,22/scale); if(nw){ k="wall"; id=nw.w.id; } }
-  if(ctrl&&k&&id){ toggleSel(k,id); render(); return; }
+  // capaViva: nearestWall no mira candados y este camino se saltaba la regla —
+  // con Estructura bloqueada, cada tap cercano metía una pared protegida.
+  if(sumar&&capaViva("structure")&&(!k||!id||k==="node")){ const nw=nearestWall(w,22/scale); if(nw){ k="wall"; id=nw.w.id; } }
+  // El toggle se DIFIERE al soltar: en el down no se sabe si esto es un tap
+  // (sumar/quitar) o un arrastre. Decidirlo acá hacía que arrastrar lo recién
+  // sumado lo des-sumara, y que un pellizco iniciado sobre una pared
+  // corrompiera la multi-selección en silencio (el toggle ya había pasado).
+  if(sumar&&k&&id&&SEL_KINDS[k]){ action={type:"toggleTap",k,id,w0:{x:w.x,y:w.y}}; return; }
   // Con varios objetos seleccionados, tocar CUALQUIERA de ellos mueve el grupo
   // entero — sus esquinas incluidas. Antes el agarre de ancla se adelantaba a esta
   // guarda y arrastrar un cuarto por una esquina lo DEFORMABA en vez de moverlo.
@@ -2499,6 +2576,19 @@ function startSelect(ev,w){
       action=ph?{type:"photomove",ph,dx:w.x-ph.x,dy:w.y-ph.y,moved:false}:null; render(); return; }
     if(k==="dim"){ setSel([{type:"dim",id}]); render(); return; }
   }
+  // Con ⊕ SUMAR activo, el vacío apaga el modo y CONSERVA lo elegido: apagar
+  // la herramienta no puede costar la selección que se estaba armando.
+  if(modoSumar){ modoSumar=false;
+    avisar("⊕ Sumar apagado — "+(selection.length?("quedan "+selection.length+" elegidos."):"sin selección."));
+    render(); return; }
+  // Último recurso ANTES de deseleccionar: el blanco DOM de una pared mide ±11 px
+  // (la mitad del mínimo táctil) y con dedo 2 de 5 taps fallaban — y el fallo
+  // encima BORRABA la selección. Un rescate geométrico con el radio del puntero
+  // salva el tap cercano; arma también el arrastre, igual que el acierto por DOM.
+  // Con mouse (radio 10 < ±11 del trazo gemelo) el escritorio no cambia nada.
+  if(capaViva("structure")){ const nwF=nearestWall(w,radioSelPx(ev.pointerType)/scale);
+    if(nwF){ const wl=nwF.w; setSel([{type:"wall",id:wl.id}]);
+      action={type:"wall",id:wl.id,sx:w.x,sy:w.y,a0:{...N(wl.a)},b0:{...N(wl.b)},wall:wl,moved:false}; render(); return; } }
   // Elegir: tocar en vacío deselecciona (la selección por CAJA es la herramienta Marco)
   setSel([]); render();
 }
@@ -2509,6 +2599,9 @@ function onMove(ev){
   const w=toWorld(ev);
   if(calibMode){ calibMode.cursor=w; if(calibMode.p1) pedirRender(true); return; }
   if(action){
+    // El gesto tiene DUEÑO: el roce de otro dedo (la mano que sostiene el iPad,
+    // un contacto en el cromo) no puede arrastrar lo que agarró el primero.
+    if(ev.pointerType==="touch"&&arrOrigen&&ev.pointerId!==arrOrigen.pid) return;
     // Histéresis: hasta que el gesto no recorra de verdad, un toque es un toque.
     // Se mide en px de pantalla (no en cm) para que valga igual a cualquier zoom.
     // El pan se excluye: mover el lienzo debe responder desde el primer píxel.
@@ -2521,6 +2614,14 @@ function onMove(ev){
     if(action.type==="pan"){ const r=svg.getBoundingClientRect();
       vb.x=action.ox-(ev.clientX-action.sx)/r.width*vb.w;
       vb.y=action.oy-(ev.clientY-action.sy)/r.height*vb.h; applyViewBox(); pedirRender(true); return; }
+    if(action.type==="toggleTap"){
+      // Superó la histéresis: ya no es un tap. Sobre algo ELEGIDO, el arrastre
+      // mueve el grupo (desde el punto de agarre, sin salto); sobre algo no
+      // elegido, el toggle pendiente muere. El pellizco lo mata gratis (action=null).
+      if(isSelected(action.k,action.id)) beginMoveSel(action.w0);
+      else action={type:"noop"};
+      return; }
+    if(action.type==="noop") return;
     if(action.type==="marquee"){ action.x1=w.x; action.y1=w.y; pedirRender(true); return; }
     if(action.type==="ohandle"){ const o=action.o; const wl=doc.walls.find(x=>x.id===o.wallId);
       if(wl){ const L=wallLen(wl); const pr=projectOnWall(wl,w); const pd=pr.t*L;
@@ -2659,19 +2760,56 @@ function commitTramoExacto(cm){
 }
 
 function onUp(ev){
-  if(esPalma(ev)) return;                 // levantar la mano no fija ni cierra nada
-  if(dedoEnModoLapiz(ev)) return;         // el lápiz está dibujando: el dedo no fija ni cierra nada
+  // Los filtros del up no pueden dejar la action viva: un dedo que se APLASTA al
+  // soltar (huella ≥45 px) o un up caído en la ventana del lápiz dejaban el
+  // arrastre pegado al siguiente toque. Si el filtrado es el DUEÑO, suelta.
+  if(esPalma(ev)){ if(action&&arrOrigen&&ev.pointerId===arrOrigen.pid) soltarAction(); return; } // levantar la mano no fija ni cierra nada
+  if(dedoEnModoLapiz(ev)){ if(action&&arrOrigen&&ev.pointerId===arrOrigen.pid) soltarAction(); return; } // el lápiz está dibujando: el dedo no fija ni cierra nada
   if(action){
+    // Solo el dedo DUEÑO consolida: el pointerup de un roce ajeno en cualquier
+    // parte de la pantalla cortaba el arrastre a la mitad (misma disciplina que
+    // ya tenía la rama de pared con paredPressId).
+    if(ev.pointerType==="touch"&&arrOrigen&&ev.pointerId!==arrOrigen.pid) return;
+    // El tap con ⊕ Sumar (o ctrl) se resuelve al soltar: suma o quita del grupo.
+    if(action.type==="toggleTap"){ toggleSel(action.k,action.id); action=null; render(); return; }
     if(action.type==="marquee"){
       const r={x1:Math.min(action.x0,action.x1),y1:Math.min(action.y0,action.y1),
                x2:Math.max(action.x0,action.x1),y2:Math.max(action.y0,action.y1)};
       const tiny=(r.x2-r.x1)<12/scale&&(r.y2-r.y1)<12/scale; // umbral apto para dedo (antes 6px, disparaba marco al toque)
-      if(tiny){ setSel([]); } // clic en vacío = deseleccionar
-      else setSel(marqueeSelect(r));
+      if(tiny){
+        // El tap del Marco SELECCIONA. Antes abría una caja de área cero y al
+        // soltar hacía setSel([]): tocar una pared jamás la elegía y encima
+        // borraba la selección que hubiera — "toco y toco y no pasa nada".
+        // Solo kinds seleccionables (SEL_KINDS); el acierto por DOM no re-chequea
+        // capa porque applyLayers ya corta los clics de las capas muertas. Sin
+        // nada debajo, el rescate geométrico de radioSelPx; el vacío de verdad
+        // deselecciona — o apaga ⊕ Sumar conservando el grupo.
+        let hit=null;
+        if(action.downK&&action.downId&&SEL_KINDS[action.downK]) hit={type:action.downK,id:action.downId};
+        else if(capaViva("structure")){ const nwF=nearestWall({x:action.x0,y:action.y0},radioSelPx(ev.pointerType)/scale);
+          if(nwF) hit={type:"wall",id:nwF.w.id}; }
+        if(hit){ if(modoSumar) toggleSel(hit.type,hit.id); else setSel([hit]); }
+        else if(modoSumar){ modoSumar=false;
+          avisar("⊕ Sumar apagado — "+(selection.length?("quedan "+selection.length+" elegidos."):"sin selección.")); }
+        else setSel([]);
+      }
+      else{ let nueva=marqueeSelect(r);
+        // Con ⊕ Sumar, la caja AGREGA al grupo en vez de reemplazarlo.
+        if(modoSumar){ const out=selection.slice();
+          nueva.forEach(s=>{ if(!out.some(x=>x.type===s.type&&x.id===s.id)) out.push(s); }); nueva=out; }
+        setSel(nueva); }
       action=null; render(); return;
     }
     if(draft&&draft.type==="room"){ commitRoom(); }
     else if(draft&&draft.type==="dim"){ commitDim(); }
+    // Un tap seco sobre una ESQUINA era un gesto mudo: armaba el arrastre de nodo
+    // sin seleccionar nada (medido: 3/3 taps sin ninguna reacción visible). Ahora
+    // elige la pared MÁS CERCANA al toque de las que comparten esa esquina — hay
+    // respuesta en todos los punteros, y sin tocar el historial (nada se movió).
+    if(action.type==="node"&&!action.moved){ const nid=action.id, wp=toWorld(ev);
+      let mej=null,md=Infinity;
+      doc.walls.forEach(wl=>{ if(enPiso(wl)&&(wl.a===nid||wl.b===nid)){ const d=projectOnWall(wl,wp).d; if(d<md){ md=d; mej=wl; } } });
+      if(mej) setSel([{type:"wall",id:mej.id}]); }
     if(action.moved){ pushHistory(); }
     action=null; hoverSnap=null; smartGuides.length=0; render(); return;
   }
@@ -4021,10 +4159,13 @@ document.getElementById("zout").onclick=()=>{ if(v3d){ z3=Math.max(0.35,z3*0.85)
 document.getElementById("zfit").onclick=()=>{ if(v3d){ orbit=35; tilt=58; z3=1; build3d(); return; } fitView(); };
 document.getElementById("zcli").onclick=()=>{ vistaCliente=!vistaCliente;
   document.getElementById("zcli").classList.toggle("on",vistaCliente);
-  if(vistaCliente){ setSel([]); draft=null; linkMode=null; calibMode=null; pintarFormato=false; smartGuides.length=0; }
+  if(vistaCliente){ setSel([]); draft=null; linkMode=null; calibMode=null; pintarFormato=false; modoSumar=false; smartGuides.length=0; }
   avisar(vistaCliente?"✨ Vista cliente: plano limpio para enseñar — ⤓ lo baja en PNG. Tocá ✨ para volver a editar.":"Modo edición normal.");
   updateHint(); render(); };
 document.getElementById("zpng").onclick=()=>exportPNG();
+document.getElementById("btnSumar").onclick=()=>{ modoSumar=!modoSumar;
+  avisar(modoSumar?"⊕ SUMAR prendido: cada objeto que toqués se agrega al grupo (tocarlo de nuevo lo quita) · un toque en el vacío lo apaga.":"⊕ Sumar apagado.");
+  render(); };
 document.getElementById("btnInstall").onclick=pedirInstalacion;
 svg.addEventListener("wheel",e=>{ e.preventDefault(); zoomAt(e.clientX,e.clientY,e.deltaY<0?0.9:1.1); },{passive:false});
 
