@@ -47,6 +47,11 @@
   .save .led{width:8px;height:8px;border-radius:50%;background:var(--ok);}
   .save.busy .led{background:var(--accent);}
   .save.err .led{background:var(--danger);}
+  /* Que NO se esté guardando es lo más grave que puede pasarle al usuario:
+     el aviso deja de ser un punto de 8 px y se lee. El !important vence a la
+     regla de body.mobile que esconde #saveTxt en el teléfono. */
+  .save.err{color:var(--danger);font-weight:800;font-size:12px;}
+  .save.err #saveTxt{display:inline!important;}
 
   /* ---------- Body ---------- */
   .body{flex:1;display:flex;min-height:0;position:relative;}
@@ -54,7 +59,16 @@
   /* Tool rail */
   .rail{width:70px;background:var(--panel);border-right:1px solid var(--line);
     display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 4px;overflow-y:auto;flex:none;
-    scrollbar-width:thin;scrollbar-color:var(--line) transparent;}
+    scrollbar-width:thin;scrollbar-color:var(--line) transparent;
+    background-image:
+      linear-gradient(to bottom, var(--panel) 30%, transparent),
+      linear-gradient(to top,    var(--panel) 30%, transparent),
+      linear-gradient(to bottom, rgba(0,0,0,.30), transparent 18px),
+      linear-gradient(to top,    rgba(0,0,0,.30), transparent 18px);
+    background-position:center top,center bottom,center top,center bottom;
+    background-repeat:no-repeat;
+    background-size:100% 28px,100% 28px,100% 18px,100% 18px;
+    background-attachment:local,local,scroll,scroll;}
   /* Scrollbar fino estilo Illustrator: nunca tapa los íconos */
   .rail::-webkit-scrollbar{width:5px;}
   .rail::-webkit-scrollbar-track{background:transparent;}
@@ -288,7 +302,12 @@
   body.mobile #grpAcciones>button{display:none;}
   body.mobile #grpAcciones #projBtn{display:inline-flex;}
   body.mobile #projName{max-width:84px;}
-  body.mobile #menuMovil{display:inline-flex;font-size:20px;padding:4px 13px;font-weight:800;}
+  /* En escritorio no hace falta: todo lo del menú vive en la barra de arriba.
+     Ojo: esto ANTES era un style="display:none" en el propio <button>, y un
+     estilo en línea le gana a cualquier regla — por eso el menú no aparecía
+     nunca en el teléfono y no había forma de exportar ni de respaldar. */
+  #menuMovil{display:none;}
+  body.mobile #menuMovil{display:inline-flex;font-size:20px;padding:4px 13px;font-weight:800;min-height:44px;min-width:44px;justify-content:center;}
   body.mobile .save{margin-left:auto;}
   /* controles 3D flotan sobre el lienzo */
   body.mobile #v3dctrl{position:fixed;top:calc(54px + env(safe-area-inset-top));left:50%;
@@ -299,7 +318,16 @@
      seleccionado (.hassel), tapaba 52 de los 72px del carril de herramientas. */
   body.mobile .rail{position:fixed;left:0;right:0;bottom:calc(var(--peekh,60px) + env(safe-area-inset-bottom));
     top:auto;width:100%;height:72px;flex-direction:row;overflow-x:auto;overflow-y:hidden;
-    border-right:0;border-top:1px solid var(--line);z-index:35;padding:6px 8px;gap:6px;}
+    border-right:0;border-top:1px solid var(--line);z-index:35;padding:6px 8px;gap:6px;
+    background-image:
+      linear-gradient(to right, var(--panel) 30%, transparent),
+      linear-gradient(to left,  var(--panel) 30%, transparent),
+      linear-gradient(to right, rgba(0,0,0,.34), transparent 22px),
+      linear-gradient(to left,  rgba(0,0,0,.34), transparent 22px);
+    background-position:left center,right center,left center,right center;
+    background-repeat:no-repeat;
+    background-size:34px 100%,34px 100%,22px 100%,22px 100%;
+    background-attachment:local,local,scroll,scroll;}
   body.mobile .rail::-webkit-scrollbar{display:none;}
   body.mobile .tool{width:56px;height:56px;}
   body.mobile .rail .sep{width:1px;height:auto;margin:6px 2px;}
@@ -343,6 +371,9 @@
   body.mobile .fabs{display:flex;position:absolute;right:8px;top:8px;gap:6px;z-index:45;}
   body.mobile .fabs>button{width:42px;height:42px;justify-content:center;background:var(--panel);font-size:17px;}
   /* Deshacer/rehacer: control segmentado tipo mando (rocker) */
+  #vacio3d{position:absolute;inset:0;display:none;align-items:center;justify-content:center;
+    text-align:center;padding:24px;color:var(--ink);font-size:14px;line-height:1.5;
+    pointer-events:none;z-index:2;}
   .rocker{display:inline-flex;align-items:stretch;background:var(--panel);
     border:1px solid var(--line2);border-radius:13px;overflow:hidden;
     box-shadow:0 4px 14px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.06);}
@@ -357,7 +388,7 @@
      igual del habilitado, que va en --ink (~12:1). Antes el opacity .45 lo
      hundia a 1,71:1 y los botones parecian no existir. */
   .rocker .rk:disabled{color:var(--faint);cursor:default;background:transparent;opacity:1;}
-  body.mobile .hint{max-width:94%;font-size:11px;}
+  body.mobile .hint{max-width:94%;font-size:11px;top:126px;}
   /* Píldora "Descargar app": persistente mientras NO esté instalada */
   #btnInstall{display:inline-flex;align-items:center;gap:6px;font-weight:700;
     background:transparent;border:1px solid var(--ok);color:var(--ok);}
@@ -420,7 +451,7 @@
   </div>
   <div class="grp" id="grpSnap">
     <button id="gridBtn" class="ghost">▤ Grilla</button>
-    <button id="snapBtn" class="on ghost" title="Snap a grilla 5 cm">🧲 Snap</button>
+    <button id="snapBtn" class="on ghost" title="Los puntos se pegan solos a la cuadrícula de 5 cm, para que las paredes queden derechas">🧲 Imán</button>
     <button id="lockBtn" class="ghost" title="Bloqueo 45° (o mantén Shift)">📐 45°</button>
     <button id="cotaBtn" class="ghost" title="Qué mide la cota de las paredes: al eje, por dentro o por fuera">📏 al eje</button>
   </div>
@@ -436,7 +467,7 @@
   </div>
   <button id="btnInstall" hidden title="Descargar PlanEléctrico Pro como app">📲 <span class="lbl">Descargar app</span></button>
   <div class="save" id="saveInd"><span class="led"></span><span id="saveTxt">Guardado</span></div>
-  <button id="menuMovil" class="ghost" style="display:none" title="Menú">⋮</button>
+  <button id="menuMovil" class="ghost" title="Menú" aria-label="Más opciones: exportar, importar y ajustes">⋮</button>
   <input type="file" id="fileInput" accept="application/json" style="display:none">
   <input type="file" id="photoInput" accept="image/*" capture="environment" style="display:none">
   <input type="file" id="fondoInput" accept="image/*" style="display:none">
@@ -450,7 +481,7 @@
 
   <div class="stagewrap">
     <svg id="canvas" xmlns="http://www.w3.org/2000/svg"></svg>
-    <div id="view3d"><div id="scene"></div></div>
+    <div id="view3d"><div id="scene"></div><div id="vacio3d" style="display:none"></div></div>
     <div class="hint" id="hint"></div>
     <div class="shapebar" id="shapebar" style="display:none">
       <button data-shape="rect" class="on" title="Rectángulo">▭</button>
@@ -473,8 +504,8 @@
     <div class="shapebar" id="selbar" style="display:none"></div>
     <div class="ctxbar" id="ctxbar" style="display:none"></div>
     <div class="zoombar">
-      <button id="zin">＋</button>
-      <button id="zout">－</button>
+      <button id="zin" title="Acercar" aria-label="Acercar">＋</button>
+      <button id="zout" title="Alejar" aria-label="Alejar">－</button>
       <button id="zfit" title="Ajustar">⤢</button>
       <button id="zcli" title="Vista cliente: plano limpio (oculta cotas, anclas y colores de circuito)"><span class="ic">👁</span><span class="lbl">Cliente</span></button>
       <button id="zpng" title="Descargar PNG del plano (ideal para WhatsApp)">⤓</button>
@@ -487,7 +518,7 @@
     <div class="sheethandle" id="sheethandle"><i></i></div>
     <button class="sheethint" id="sheethint">▲ Editar <b></b></button>
     <div class="tabs">
-      <button data-tab="insp" class="on">Inspector</button>
+      <button data-tab="insp" class="on">Editar</button>
       <button data-tab="cir">⚡ Circuitos <span id="cirBadge" class="cotbadge" hidden>0</span></button>
       <button data-tab="layers">Capas</button>
     </div>
@@ -933,6 +964,7 @@ function updateHistBtns(){
 
 /* ===================== Autosave ===================== */
 let saveTimer=null, storageOK=true;
+let avisoDeGuardadoDado=false;
 function setSave(state,txt){ const s=document.getElementById("saveInd");
   s.className="save "+(state||""); document.getElementById("saveTxt").textContent=txt; }
 function scheduleSave(){ setSave("busy","Guardando…"); clearTimeout(saveTimer);
@@ -1007,7 +1039,10 @@ function doSave(){ try{
     if(window.parent!==window){ try{
       if(cub) window.parent.postMessage({type:"pep:cubicacion2",version:2,payload:cub},location.origin);
     }catch(e){} } }
-  catch(e){ storageOK=false; setSave("err","Solo memoria"); } }
+  catch(e){ storageOK=false; setSave("err","NO se está guardando");
+    // Una sola vez: si no, saltaria en cada autoguardado (cada 600 ms).
+    if(!avisoDeGuardadoDado){ avisoDeGuardadoDado=true;
+      avisar("⚠ El plano NO se está guardando en este aparato. Andá a ⇩ Exportar y guardá el «Respaldo completo» AHORA, antes de seguir dibujando."); } } }
 function openProject(id,fit){ const raw=lsGet("planelectrico:proj:"+id); if(!raw) return false;
   try{ const s=JSON.parse(raw);
     doc=normalizeDoc(s.doc||{nodes:{},walls:[],openings:[],elements:[],dims:[],labels:[],circuits:[],routes:[],photos:[]});
@@ -1858,10 +1893,12 @@ function updateHint(){ const h=document.getElementById("hint");
   if(linkMode){ h.textContent="MODO VÍNCULO 🔗: tocá cada luz que controla este apagador (tocarla de nuevo la quita) · clic en vacío o Esc para terminar"; h.style.display=""; return; }
   if(pintarFormato){ h.textContent="🖌 MODO PINCEL: tocá objetos del mismo tipo para copiarles el formato · Esc para terminar."; h.style.display=""; return; }
   if(vistaCliente){ h.textContent="✨ VISTA CLIENTE: plano limpio de solo lectura — tocá ✨ para volver a editar."; h.style.display=""; return; }
-  const map={ select:"Clic: seleccionar · arrastre en vacío: marco · Ctrl+clic añade · ◇ de una pared seleccionada = CURVARLA (arrástralo, como en Illustrator) · Shift+arrastre o ✋: mover lienzo.",
+  const tactil=document.body.classList.contains("mobile");
+  const map={ select:"Tocá para elegir y mover UN objeto · "+(tactil?"":"Ctrl+clic añade a la selección · ")+"el ◇ de una pared elegida la CURVA (arrastralo) · "+(tactil?"dos dedos":"Shift+arrastre o ✋")+": mover el plano. Para elegir VARIOS a la vez, usá la herramienta ▚ Marco.",
+    marquee:"Arrastrá una caja alrededor de lo que querés elegir: todo lo que quede adentro se selecciona junto. Después arrastrá cualquier pieza elegida para mover el grupo entero.",
     wall:"Tocá para empezar; estirá (apretado o clic-clic) y al soltar queda el ancla. Tocá el punto inicial para cerrar la figura. Enter/Esc/doble-clic termina. Shift = 45°.",
     curve:"Toca INICIO y FIN: la pared sale curva. Luego arrastrá el rombo ◇ del centro para ajustar cuánto se curva (al centro = recta).",
-    room:"Elige la FORMA (▭ L T U) arriba a la izquierda y arrastra: el contorno completo sale de un solo gesto.",
+    room:"Elegí la FORMA (▭ L T U) en la barrita de formas y arrastrá: el contorno completo sale de un solo gesto.",
     door:"ARRASTRA sobre una pared: donde presionas empieza la puerta y donde sueltas termina (medida en vivo). Clic corto = 80 cm estándar.",
     window:"ARRASTRA sobre una pared: donde presionas empieza la ventana y donde sueltas termina (medida en vivo). Clic corto = 1 m estándar.",
     dim:"Clic-arrastra entre dos puntos para una cota.",
@@ -1874,12 +1911,15 @@ function updateHint(){ const h=document.getElementById("hint");
     photo:"Toca el punto del plano donde va la foto (la caja abierta, el registro…) y elige o toma la imagen.",
     stair:"ARRASTRA del arranque a la llegada de la escalera: la app calcula los ESCALONES solos (contrahuella máx. 18 cm + regla de Blondel)." };
   let txt=map[tool]||"";
+  const enMovil=document.body.classList.contains("mobile");
   if(CATS[tool]){ const v=(settings.varByCat[tool]&&CATS[tool].includes(settings.varByCat[tool]))?settings.varByCat[tool]:CATS[tool][0];
-    txt=(CATS[tool].length>1?"Elige el símbolo arriba a la izquierda · ":"")+
-      "Clic para colocar: "+ELEMENTS[v].name+(ELEMENTS[v].va?" ("+ELEMENTS[v].va+" VA)":"")+
+    const donde=enMovil?"abajo":"arriba a la izquierda";
+    const como=enMovil?"Tocá el plano y tocá otra vez el mismo punto para confirmar: ":"Clic para colocar: ";
+    txt=(CATS[tool].length>1?"Elegí el símbolo "+donde+" · ":"")+
+      como+ELEMENTS[v].name+(ELEMENTS[v].va?" ("+ELEMENTS[v].va+" VA)":"")+
       " · o ARRASTRÁ la ficha directo al plano"; }
   h.textContent=txt; h.style.display=txt?"":"none";
-  if(document.body.classList.contains("mobile")&&txt){ clearTimeout(window.__hintT);
+  if(enMovil&&txt){ clearTimeout(window.__hintT);
     window.__hintT=setTimeout(()=>{ h.style.display="none"; },4000); } }
 
 // Imán "misma medida que la pared anterior". Dos cosas estaban mal y hacían que
@@ -2359,7 +2399,7 @@ function onDown(ev){
     if(document.body.classList.contains("mobile")){
       // dos toques: el 1º arma un fantasma; un 2º toque cerca (o ✔) confirma; lejos reubica; ✕ cancela
       if(pendingPlace&&Math.hypot(sp.x-pendingPlace.x,sp.y-pendingPlace.y)<44/scale){
-        const pp=pendingPlace; pendingPlace=null; setTool("select"); colocarElemento(pp.cat,{x:pp.x,y:pp.y}); return; }
+        const pp=pendingPlace; pendingPlace=null; colocarElemento(pp.cat,{x:pp.x,y:pp.y}); return; }
       pendingPlace={cat:tool,x:sp.x,y:sp.y}; avisar("Tocá ✔ (o el mismo punto) para colocar · ✕ cancela"); updateHint(); render(); return; }
     colocarElemento(tool,sp); return; }
 }
@@ -2733,7 +2773,7 @@ function renderInspector(p){
     p.innerHTML=`<div class="kdt">Selección múltiple</div>
       <div class="big">${selection.length}</div>
       <p class="muted">${cnt.wall?cnt.wall+" pared(es) · ":""}${cnt.element?cnt.element+" elemento(s) · ":""}${cnt.route?cnt.route+" tubo(s) · ":""}${cnt.photo?cnt.photo+" foto(s) · ":""}${cnt.label?cnt.label+" texto(s) · ":""}${cnt.dim?cnt.dim+" cota(s)":""}</p>
-      <p class="muted">Arrastra cualquier pieza seleccionada para mover todo el grupo. Ctrl+clic añade o quita.</p>
+      <p class="muted">Arrastrá cualquier pieza elegida para mover todo el grupo. Con la herramienta ▚ Marco podés encerrar otras${document.body.classList.contains("mobile")?"":" — y con Ctrl+clic sumás o quitás de a una"}.</p>
       ${cableInfo}
       ${selElems.length?field("⚡ Asignar circuito a los "+selElems.length+" puntos",`<select id="f_circall">${cirOpts}</select>`):""}
       <button id="f_dup" style="width:100%;justify-content:center;margin-top:4px">⧉ Duplicar selección (Ctrl+D)</button>
@@ -2749,9 +2789,9 @@ function renderInspector(p){
     return;
   }
   if(!selected){ p.innerHTML=`<div class="xp"><span>⭐ XP ${xp}</span><div class="xpbar"><i style="width:${Math.min(100,xp%100)}%"></i></div><span>Nv ${Math.floor(xp/100)+1}</span></div>
-    <p class="muted" style="margin-top:16px">Nada seleccionado.<br><br>Elige una herramienta a la izquierda y empieza a dibujar. Con la flecha (Sel): clic selecciona, <b>arrastre en vacío = marco de selección</b>, Ctrl+clic añade.</p>
+    <p class="muted" style="margin-top:16px">Nada seleccionado.<br><br>Elegí una herramienta y empezá a dibujar. Con la flecha ↖ tocás para elegir y mover UN objeto; para elegir <b>varios a la vez</b> usá la herramienta ▚ Marco y arrastrá una caja alrededor.</p>
     <div class="kdt" style="margin-top:20px">Resumen</div>
-    <p class="muted">Paredes: <b>${doc.walls.length}</b> · Aperturas: <b>${doc.openings.length}</b> · Elementos: <b>${doc.elements.length}</b> · Espacios: <b>${doc.labels.length}</b><br>Área de esta planta: <b>${(detectRooms().reduce((s,r)=>s+r.area,0)/10000).toFixed(1)} m²</b> · Escaleras: <b>${(doc.stairs||[]).filter(enPiso).length}</b></p>`;
+    <p class="muted">Paredes: <b>${doc.walls.length}</b> · Puertas y ventanas: <b>${doc.openings.length}</b> · Puntos eléctricos: <b>${doc.elements.length}</b> · Cuartos: <b>${doc.labels.length}</b><br>Área de esta planta: <b>${(detectRooms().reduce((s,r)=>s+r.area,0)/10000).toFixed(1)} m²</b> · Escaleras: <b>${(doc.stairs||[]).filter(enPiso).length}</b></p>`;
     // Biblioteca de símbolos buscable (Illustrator Symbols / Canva Elements)
     const cat4={}; Object.keys(CATS).forEach(c=>CATS[c].forEach(t=>cat4[t]=c));
     const item=k=>{ const i=ELEMENTS[k]; return `<button data-sym="${k}"><span>${i.icon}</span><small>${i.name}</small></button>`; };
@@ -3276,6 +3316,13 @@ function center3d(){ const ns=Object.values(doc.nodes); if(!ns.length)return{cx:
   let mx=0,my=0; ns.forEach(n=>{mx+=n.x;my+=n.y;}); return {cx:mx/ns.length,cy:my/ns.length}; }
 function build3d(){
   scene.innerHTML=""; const {cx,cy}=center3d(); const H=settings.wallH;
+  // Sin paredes no hay nada que levantar: el 3D salia en blanco y parecia roto.
+  const v3v=document.getElementById("vacio3d");
+  if(v3v){ const hayParedes=(doc.walls||[]).some(w=>enPiso(w));
+    v3v.style.display=hayParedes?"none":"flex";
+    if(!hayParedes) v3v.innerHTML='<div><div style="font-size:34px;margin-bottom:8px">🧱</div>'+
+      '<b>Todavía no hay paredes que levantar</b><br>'+
+      '<span style="opacity:.85">Volvé a <b>▦ 2D</b>, dibujá las paredes de la casa y regresá acá: las vas a ver de pie.</span></div>'; }
   const pisosArr=(doc.pisos&&doc.pisos.length?doc.pisos:[{id:"p1",nombre:""}]);
   const zDe=pid=>{ const i=pisosArr.findIndex(p=>p.id===(pid||"p1")); return (i<0?0:i)*(H+40); };
   scene.style.transform=`translate(-50%,-50%) rotateX(${tilt}deg) rotateZ(${orbit}deg) scale3d(${z3},${z3},${z3})`;
@@ -3451,23 +3498,30 @@ function pedirOpcion(titulo,ops){ return new Promise(res=>{
   m.querySelectorAll("[data-k]").forEach(b=>b.onclick=()=>done(b.dataset.k));
   m.querySelector("#uiNo").onclick=()=>done(null);
   m.onclick=ev=>{ if(ev.target===m) done(null); }; }); }
-function avisar(msg){ const d=document.createElement("div");
-  // En móvil el toast sube por encima de la hoja y el rail (avisarCot ya lo
-  // hacía; este quedaba ENTERRADO debajo y los avisos no se veían).
-  const abajo=document.body.classList.contains("mobile")?"calc(150px + env(safe-area-inset-bottom))":"26px";
-  d.style.cssText="position:fixed;left:50%;bottom:"+abajo+";transform:translateX(-50%);background:var(--panel);border:1px solid var(--accent);color:var(--ink);padding:10px 16px;border-radius:10px;z-index:120;font-size:13px;box-shadow:0 8px 24px rgba(0,0,0,.4);max-width:82%;text-align:center;pointer-events:none";
-  d.textContent=msg; document.body.appendChild(d); setTimeout(()=>d.remove(),3400); }
+// SINGLETON, como el del carrito. Antes creaba un div NUEVO por cada aviso sin
+// quitar el anterior, y como todos van al mismo sitio se apilaban encimados y
+// quedaban ilegibles. Ahora el mensaje nuevo reemplaza al viejo: el usuario ve
+// el que importa. Va 76 px MAS ARRIBA que el del carrito para que los dos
+// puedan convivir cuando salen juntos (colocar un símbolo dispara los dos).
+let _toast=null,_toastTimer=0;
+function avisar(msg){
+  if(!_toast||!_toast.isConnected){ _toast=document.createElement("div"); _toast.id="avisoToast";
+    _toast.style.cssText="position:fixed;left:50%;transform:translateX(-50%);background:var(--panel);border:1px solid var(--accent);color:var(--ink);padding:10px 16px;border-radius:10px;z-index:120;font-size:13px;box-shadow:0 8px 24px rgba(0,0,0,.4);max-width:82%;text-align:center;pointer-events:none";
+    document.body.appendChild(_toast); }
+  _toast.style.bottom=document.body.classList.contains("mobile")?"calc(226px + env(safe-area-inset-bottom))":"92px";
+  _toast.textContent=msg;
+  clearTimeout(_toastTimer); _toastTimer=setTimeout(()=>{ if(_toast) _toast.remove(); },3400); }
 
 // toast del carrito: singleton (las altas en ráfaga actualizan el MISMO aviso) y tocable → abre la cotización
 let _cartToast=null,_cartTimer=0;
 function avisarCot(msg){
   if(!_cartToast||!_cartToast.isConnected){ _cartToast=document.createElement("div");
     _cartToast.id="cartToast";
-    _cartToast.style.cssText="position:fixed;left:50%;transform:translateX(-50%);background:var(--panel);border:1px solid var(--accent);color:var(--ink);padding:10px 16px;border-radius:10px;z-index:120;font-size:13px;box-shadow:0 8px 24px rgba(0,0,0,.4);max-width:82%;text-align:center;cursor:pointer";
+    _cartToast.style.cssText="position:fixed;left:50%;transform:translateX(-50%);background:var(--panel);border:1px solid var(--accent);color:var(--ink);padding:10px 16px;border-radius:10px;z-index:120;font-size:13px;box-shadow:0 8px 24px rgba(0,0,0,.4);max-width:82%;text-align:center;pointer-events:none";
     _cartToast.onclick=()=>{ _cartToast.remove(); abrirTab("cot"); if(document.body.classList.contains("mobile")) setSheet("mid"); };
     document.body.appendChild(_cartToast); }
   _cartToast.style.bottom=document.body.classList.contains("mobile")?"calc(150px + env(safe-area-inset-bottom))":"26px"; // sobre el rail: no tapa las fichas
-  _cartToast.innerHTML=msg+' <span style="color:var(--accent);font-weight:700">· Ver 🧾</span>';
+  _cartToast.innerHTML=msg+' <span style="color:var(--accent);font-weight:700;pointer-events:auto;cursor:pointer;display:inline-block;min-height:44px;line-height:44px;padding:0 10px;margin:-10px 0">· Ver 🧾</span>';
   clearTimeout(_cartTimer); _cartTimer=setTimeout(()=>{ if(_cartToast) _cartToast.remove(); },2600); }
 
 /* ===================== Bloques reutilizables (viajan entre proyectos) ===================== */
@@ -3539,7 +3593,7 @@ function showBloques(){ const bs=loadBlocks();
   const rows=bs.map((b,i)=>`<div style="display:flex;align-items:center;gap:6px;padding:9px 4px;border-bottom:1px solid var(--line)">
     <div data-bi="${i}" style="flex:1;min-width:0;cursor:pointer"><b>📦 ${b.nombre}</b>
       <div style="font-family:var(--mono);font-size:10.5px;color:var(--faint)">${(b.walls||[]).length} paredes · ${(b.elements||[]).length} elementos · ${(b.stairs||[]).length} escaleras</div></div>
-    <button data-bx="${i}" class="ghost danger" style="min-height:30px;padding:2px 8px">🗑</button></div>`).join("")
+    <button data-bx="${i}" class="ghost danger" title="Eliminar este bloque" aria-label="Eliminar el bloque ${b.nombre}" style="min-height:44px;min-width:44px;padding:2px 10px">🗑</button></div>`).join("")
     ||'<p class="muted">Sin bloques aún. Seleccioná algo en el plano (un baño completo, una cocina) y tocá 📦 en la barra de selección.</p>';
   m.innerHTML=`<div style="background:var(--panel);border:1px solid var(--line2);border-radius:12px;max-width:440px;width:100%;max-height:85vh;overflow:auto;padding:16px">
     <div class="kdt" style="margin-bottom:8px">📦 Mis bloques (disponibles en todos los proyectos)</div>${rows}
@@ -3606,7 +3660,7 @@ function showProjects(){ doSave();
     <button id="pNew" style="width:100%;justify-content:center;margin-top:12px">＋ Nuevo proyecto en blanco</button>
     <button id="pTpl" class="ghost" style="width:100%;justify-content:center;margin-top:6px">🏠 Nuevo desde plantilla: casa 2 dormitorios</button>
     <button id="pClose" class="ghost" style="width:100%;justify-content:center;margin-top:6px">Cerrar</button>
-    <div class="disclaimer">Los proyectos viven en ESTE navegador. Respaldo recomendado: Export → JSON (incluye las fotos).</div>
+    <div class="disclaimer">⚠ Tus planos se guardan solo en ESTE aparato. Si lo perdés, lo cambiás o borrás los datos del navegador, se van con él. Para llevártelos: ⇩ Exportar → «💾 Respaldo completo», que incluye las fotos.</div>
   </div>`;
   document.body.appendChild(m);
   m.querySelector("#pClose").onclick=()=>m.remove();
@@ -3651,7 +3705,7 @@ function showTutorial(){
       <li><b>〰️ Tubo</b>: trazá la canalización real → el cable y el <b>diagrama unifilar</b> salen solos.</li>
       <li><b>Export → PDF</b>: plano + circuitos + unifilar + materiales con tu membrete, listo para WhatsApp.</li>
     </ol>
-    <p class="muted" style="margin-top:10px">📁 arriba = tus proyectos por cliente · 📷 = fotos ancladas al plano · Ctrl+D duplica la selección.</p>
+    <p class="muted" style="margin-top:10px">📁 arriba = tus obras por cliente · 📷 = fotos pegadas al plano · para repetir algo que ya pusiste, elegilo y tocá ⧉ en la barrita que aparece.</p>
     <button id="tutoOk" style="width:100%;justify-content:center;margin-top:12px">¡A dibujar!</button>
   </div>`;
   document.body.appendChild(m);
@@ -3811,7 +3865,22 @@ const TOOLS=[["select","↖","Elegir"],["marquee","▚","Marco"],["wall","／","
   ["sep"],["toma","🔌","Tomas"],["lampara","💡","Luces"],["interruptor","🎚️","Apagad."],["extra","🔔","Más"],["equipo","🚿","Equipos"],["panel","⚡","Tablero"],["route","〰️","Tubo"],["photo","📷","Foto"],["stair","🪜","Escalera"],["mueble","🛋️","Muebles"],
   ["sep"],["pan","✋","Mano"]];
 const rail=document.getElementById("rail");
-TOOLS.forEach(t=>{ if(t[0]==="sep"){ const s=document.createElement("div"); s.className="sep"; rail.appendChild(s); return; }
+// EL MISMO CATÁLOGO, OTRO CAMINO. En el teléfono solo caben 5 de las 21
+// herramientas, y con el orden de escritorio esas 5 son todas de dibujo: el
+// electricista abre una app de planos ELÉCTRICOS y no ve ni un enchufe. Acá el
+// orden se reacomoda para que lo eléctrico quede a mano; NINGUNA herramienta se
+// agrega ni se quita, así que el plano y el recorrido son idénticos en los tres
+// formatos. Decisión del dueño, 26-ago.
+function ordenDelRail(){
+  if(!esMovil()) return TOOLS;
+  const prim=["select","wall","toma","lampara","interruptor","panel"]; // lo que se usa a cada rato
+  const porId=new Map(TOOLS.filter(t=>t[0]!=="sep").map(t=>[t[0],t]));
+  const cabeza=prim.map(id=>porId.get(id)).filter(Boolean);
+  const usados=new Set(prim);
+  const resto=TOOLS.filter(t=>t[0]!=="sep"&&!usados.has(t[0]));
+  return [...cabeza,["sep"],...resto];
+}
+ordenDelRail().forEach(t=>{ if(t[0]==="sep"){ const s=document.createElement("div"); s.className="sep"; rail.appendChild(s); return; }
   const b=document.createElement("button"); b.className="tool ghost"; b.dataset.tool=t[0];
   b.innerHTML=`<span class="ic">${t[1]}</span><span>${t[2]}</span>`;
   b.onclick=()=>{ if(b.__suprimeClick){ b.__suprimeClick=false; return; } setTool(t[0]); };
@@ -3969,11 +4038,11 @@ document.querySelectorAll("#shapebar button").forEach(b=>b.onclick=()=>{
 document.getElementById("exportBtn").onclick=exportMenu;
 async function exportMenu(){
   const pick=await pedirOpcion("⇩ Exportar",[
-    {k:"pdf",txt:"📄 PDF con membrete — para el cliente"},
-    {k:"json",txt:"💾 JSON — respaldo completo (incluye fotos)"},
-    {k:"svg",txt:"🖼 SVG vectorial"},
-    {k:"png",txt:"🖼 PNG imagen"},
-    {k:"dxf",txt:"📐 DXF — AutoCAD / LibreCAD"}]);
+    {k:"pdf",txt:"📄 Para entregarle al cliente (PDF con membrete)"},
+    {k:"json",txt:"💾 Respaldo completo, para no perder el plano (incluye las fotos)"},
+    {k:"png",txt:"🖼 Una foto del plano, para WhatsApp (PNG)"},
+    {k:"svg",txt:"🖼 Imagen que no se pixelea al agrandar (SVG)"},
+    {k:"dxf",txt:"📐 Para abrirlo en AutoCAD o LibreCAD (DXF)"}]);
   if(!pick) return;
   if(pick==="pdf") printPDF(); else if(pick==="json") exportJSON();
   else if(pick==="svg") exportSVG(); else if(pick==="png") exportPNG();
@@ -4139,7 +4208,7 @@ function exportPNG(){ const s=svgString(); const img=new Image();
     ctx.fillRect(0,0,c.width,c.height); ctx.drawImage(img,0,0,c.width,c.height);
     c.toBlob(b=>{ const u=URL.createObjectURL(b); const a=document.createElement("a");
       a.href=u;a.download="plano.png";a.click(); URL.revokeObjectURL(u); }); };
-  img.onerror=()=>avisar("No se pudo generar el PNG en este entorno; usá SVG o JSON."); img.src=url; }
+  img.onerror=()=>avisar("No se pudo crear la imagen. Probá con «🖼 Imagen que no se pixelea» o «💾 Respaldo completo», en el mismo menú de ⇩ Exportar."); img.src=url; }
 document.getElementById("importBtn").onclick=()=>document.getElementById("fileInput").click();
 document.getElementById("fileInput").onchange=e=>{ const f=e.target.files[0]; if(!f)return;
   const rd=new FileReader(); rd.onload=async ()=>{ try{ const s=JSON.parse(rd.result);
@@ -4150,7 +4219,7 @@ document.getElementById("fileInput").onchange=e=>{ const f=e.target.files[0]; if
     if(doc.fondo&&doc.fondo.dataInline&&!doc.fondo.fotoId){ const b=dataURLToBlob(doc.fondo.dataInline);
       if(b){ const fid=uid("f")+Date.now().toString(36); if(await fotoPut(fid,b)){ doc.fondo.fotoId=fid; delete doc.fondo.dataInline; } } }
     fondoURL=null;
-    scheduleSave(); render(); }catch(err){ avisar("Archivo inválido — tiene que ser un JSON exportado por PlanEléctrico Pro."); } }; rd.readAsText(f);
+    scheduleSave(); render(); }catch(err){ avisar("Ese archivo no es un respaldo de PlanEléctrico Pro. Buscá el que sacaste con ⇩ Exportar → «Respaldo completo»."); } }; rd.readAsText(f);
   e.target.value=""; };
 document.getElementById("blkBtn").onclick=()=>showBloques();
 document.getElementById("fondoBtn").onclick=async ()=>{
@@ -4181,7 +4250,7 @@ document.getElementById("fondoInput").onchange=e=>{
     const MAX=1600; const k=Math.min(1,MAX/Math.max(img.width,img.height));
     const c=document.createElement("canvas"); c.width=Math.round(img.width*k); c.height=Math.round(img.height*k);
     c.getContext("2d").drawImage(img,0,0,c.width,c.height); URL.revokeObjectURL(url);
-    c.toBlob(async b=>{ if(!b){ avisar("No se pudo procesar la imagen."); return; }
+    c.toBlob(async b=>{ if(!b){ avisar("Esa foto no se pudo usar. Probá con otra, o sacale una captura de pantalla y usá esa."); return; }
       if(doc.fondo&&doc.fondo.fotoId) fotoDel(doc.fondo.fotoId);
       const fid=uid("f")+Date.now().toString(36);
       const okI=await fotoPut(fid,b);
@@ -4192,13 +4261,13 @@ document.getElementById("fondoInput").onchange=e=>{
       setTimeout(async ()=>{ if(await pedirConfirm("Fondo colocado 🖼.<br>¿Calibrar la escala ahora?<br><small>Recomendado: marcá una distancia conocida del plano (una puerta, una pared).</small>","📐 Calibrar ahora")) iniciarCalibracion(); },60);
     },"image/jpeg",0.8);
   };
-  img.onerror=()=>{ URL.revokeObjectURL(url); avisar("No se pudo leer la imagen."); };
+  img.onerror=()=>{ URL.revokeObjectURL(url); avisar("No se pudo abrir esa foto. Revisá que sea una imagen y probá de nuevo."); };
   img.src=url;
 };
 document.getElementById("photoInput").onchange=async e=>{
   const f=e.target.files[0]; e.target.value=""; if(!f||!window.__photoPos) return;
   const pos=window.__photoPos; window.__photoPos=null;
-  const blob=await downscaleFoto(f); if(!blob){ avisar("No se pudo procesar la imagen."); return; }
+  const blob=await downscaleFoto(f); if(!blob){ avisar("Esa foto no se pudo usar. Probá con otra, o sacale una captura de pantalla y usá esa."); return; }
   const fid=uid("f")+Date.now().toString(36);
   const okIdb=await fotoPut(fid,blob);
   const ph={id:uid("ph"),x:pos.x,y:pos.y,fotoId:okIdb?fid:null,nota:"",piso:doc.pisoActivo};
@@ -4460,7 +4529,7 @@ document.getElementById("menuMovil").onclick=abrirMenuMovil;
 document.getElementById("floorbtn").onclick=menuPisos;
 document.getElementById("fabU").onclick=undo;
 document.getElementById("fabR").onclick=redo;
-document.getElementById("fabOK").onclick=()=>{ if(pendingPlace){ const pp=pendingPlace; pendingPlace=null; setTool("select"); colocarElemento(pp.cat,{x:pp.x,y:pp.y}); return; } finishDraft(); };
+document.getElementById("fabOK").onclick=()=>{ if(pendingPlace){ const pp=pendingPlace; pendingPlace=null; colocarElemento(pp.cat,{x:pp.x,y:pp.y}); return; } finishDraft(); };
 document.getElementById("fabX").onclick=()=>{ if(pendingPlace){ pendingPlace=null; updateHint(); render(); return; } draft=null; setSel([]); pruneNodes(); updateHint(); render(); };
 // barra "Editar ▲": sube el panel a mid para editar el objeto seleccionado
 document.getElementById("sheethint")?.addEventListener("click",()=>setSheet("mid"));
