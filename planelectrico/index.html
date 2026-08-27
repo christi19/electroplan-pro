@@ -106,6 +106,7 @@
   .zoombar button{width:40px;height:40px;justify-content:center;padding:0;font-size:18px;background:var(--panel);}
   .zoombar button.on{border-color:var(--accent);color:var(--accent);}
   .zoombar #btnSumar{width:44px;height:44px;} /* control nuevo: blanco táctil ≥44 (regla 18) */
+  #canvas .cand{stroke:var(--accent);} /* candidatos EN VIVO de la marquesina (la clase le gana al atributo stroke) */
   #zcli{flex-direction:column;gap:1px;height:auto;min-height:40px;padding:5px 0 4px;line-height:1;}
   #zcli .ic{font-size:18px;}
   #zcli .lbl{font-size:8.5px;font-weight:700;letter-spacing:.02em;}
@@ -907,9 +908,16 @@ function rectUtil(){ const r=svg.getBoundingClientRect();
 // cada carga: esto lo corta.
 function vbSano(v){ return !!v&&[v.x,v.y,v.w,v.h].every(Number.isFinite)&&v.w>0&&v.h>0; }
 function updateScale(){ const r=rectUtil(); if(!r) return;
-  scale=r.width/vb.w; vb.h=vb.w*(r.height/r.width); applyViewBox(); }
+  scale=r.width/vb.w; vb.h=vb.w*(r.height/r.width); applyViewBox(); invalidarRectLienzo(); }
 function applyViewBox(){ svg.setAttribute("viewBox",`${vb.x} ${vb.y} ${vb.w} ${vb.h}`); }
-function toWorld(ev){ const r=svg.getBoundingClientRect();
+// El rect del lienzo se CACHEA por gesto: getBoundingClientRect en CADA
+// pointermove fuerza layout (hasta 120/s en ProMotion) intercalado con el árbol
+// SVG recién escrito. Se refresca al arrancar cada gesto (onDown) y cada vez
+// que el layout de verdad cambia — todos esos caminos pasan por updateScale()
+// (resize, visualViewport, ResizeObserver, pellizco).
+let _rectLienzo=null;
+function invalidarRectLienzo(){ _rectLienzo=null; }
+function toWorld(ev){ const r=_rectLienzo||(_rectLienzo=svg.getBoundingClientRect());
   return { x: vb.x+(ev.clientX-r.left)/r.width*vb.w, y: vb.y+(ev.clientY-r.top)/r.height*vb.h }; }
 function zoomAt(cx,cy,factor){
   const r=rectUtil(); if(!r) return;
@@ -1537,7 +1545,7 @@ function render(skipPanel){
   // marquesina de selección (estilo Illustrator)
   if(action&&action.type==="marquee"){
     const x=Math.min(action.x0,action.x1),y=Math.min(action.y0,action.y1);
-    svg.appendChild(el("rect",{x,y,width:Math.abs(action.x1-action.x0),height:Math.abs(action.y1-action.y0),
+    svg.appendChild(el("rect",{id:"gVivoMarco",x,y,width:Math.abs(action.x1-action.x0),height:Math.abs(action.y1-action.y0),
       fill:"var(--blue)","fill-opacity":.08,stroke:"var(--blue)","stroke-width":1,
       "stroke-dasharray":(6/scale)+" "+(4/scale),"vector-effect":"non-scaling-stroke",style:"pointer-events:none"}));
   }
@@ -1563,6 +1571,11 @@ function render(skipPanel){
   // barra rechaza los clicks de ese mismo toque durante 350 ms.
   if(sb2){ if(selection.length&&(tool==="select"||tool==="marquee")&&!linkMode&&!action){
       const sbNace=sb2.style.display!=="flex";
+      // Firma: la barra solo se reconstruye si la selección de verdad cambió
+      // (mismo patrón que _statusSig). Antes cada render la rearmaba por innerHTML.
+      const sbSig=selection.length+"|"+(selection.length===1?selection[0].type+":"+selection[0].id:"");
+      if(!sbNace&&sb2._sig===sbSig){ /* nada que rearmar */ }
+      else{ sb2._sig=sbSig;
       sb2.innerHTML=`<span style="align-self:center;font-family:var(--mono);font-size:11px;color:var(--soft);padding:0 8px">${selection.length} sel.</span>`+
         (selection.length===1?`<button title="Copiar formato a otros objetos (pincel)" id="sb_fmt">🖌</button>`:"")+
         `<button title="Duplicar (Ctrl+D)" id="sb_dup">⧉</button>`+
@@ -1572,8 +1585,6 @@ function render(skipPanel){
         `<button title="Guardar como bloque reutilizable" id="sb_blk">📦</button>`+
         `<button title="Eliminar (Supr)" id="sb_del" class="danger">🗑</button>`+
         `<button title="Deseleccionar (Esc)" id="sb_x">✕</button>`;
-      sb2.style.display="flex";
-      if(sbNace&&document.body.classList.contains("mobile")) sb2._nacio=performance.now();
       // El guardián vive EN CADA BOTÓN, no en el contenedor: un listener en el
       // contenedor lo volvía imán del ajuste táctil de Chromium y se robaba
       // toques del lienzo vecino (medido: un tap a 7 px del borde caía en él).
@@ -1586,6 +1597,9 @@ function render(skipPanel){
       sb2.querySelector("#sb_blk").onclick=gN(guardarBloque);
       sb2.querySelector("#sb_del").onclick=gN(deleteSelected);
       sb2.querySelector("#sb_x").onclick=gN(()=>{ setSel([]); render(); });
+      }
+      sb2.style.display="flex";
+      if(sbNace&&document.body.classList.contains("mobile")) sb2._nacio=performance.now();
     } else sb2.style.display="none"; }
   // fantasma de colocación pendiente (dos toques en móvil)
   if(pendingPlace){ const et=(settings.varByCat[pendingPlace.cat]&&CATS[pendingPlace.cat].includes(settings.varByCat[pendingPlace.cat]))?settings.varByCat[pendingPlace.cat]:CATS[pendingPlace.cat][0];
@@ -1826,6 +1840,11 @@ function drawDraft(){
 // hay y dónde están sus nodos — mover un ancla o deshacer la invalida sola.
 let _roomsSig=null, _roomsCache=[];
 function detectRooms(){
+  // Con una geometría EN ARRASTRE, el cuarto del frame anterior sirve: la firma
+  // incluye coordenadas, así que cada pointermove la invalidaba y el DFS entero
+  // (56% del tiempo) recorría por frame. Al soltar (action=null), el render
+  // final revalida solo y los m² quedan exactos.
+  if(action&&(action.type==="wall"||action.type==="node"||action.type==="moveSel")) return _roomsCache;
   const sg=[doc.pisoActivo||"p1"];
   for(const w of doc.walls){ if(!enPiso(w))continue; const a=N(w.a),b=N(w.b); if(!a||!b)continue;
     sg.push(w.a,w.b,a.x,a.y,b.x,b.y); }
@@ -1915,7 +1934,7 @@ function updateHint(){ const h=document.getElementById("hint");
   if(pintarFormato){ h.textContent="🖌 MODO PINCEL: tocá objetos del mismo tipo para copiarles el formato · Esc para terminar."; h.style.display=""; return; }
   if(vistaCliente){ h.textContent="✨ VISTA CLIENTE: plano limpio de solo lectura — tocá ✨ para volver a editar."; h.style.display=""; return; }
   const tactil=document.body.classList.contains("mobile");
-  const map={ select:"Tocá para elegir y mover UN objeto · "+(tactil?"":"Ctrl+clic añade a la selección · ")+"el ◇ de una pared elegida la CURVA (arrastralo) · "+(tactil?"dos dedos":"Shift+arrastre o ✋")+": mover el plano. Para elegir VARIOS a la vez, usá la herramienta ▚ Marco.",
+  const map={ select:"Tocá para elegir y mover UN objeto · arrastrá en el VACÍO para encerrar varios con una caja · "+(tactil?"⊕ Sumar":"Ctrl+clic o ⊕ Sumar")+" agrega de a uno · el ◇ de una pared elegida la CURVA (arrastralo) · "+(tactil?"dos dedos":"Shift+arrastre o ✋")+": mover el plano.",
     marquee:"Arrastrá una caja alrededor de lo que querés elegir: todo lo que quede adentro se selecciona junto. Después arrastrá cualquier pieza elegida para mover el grupo entero.",
     wall:"Tocá para empezar; estirá (apretado o clic-clic) y al soltar queda el ancla. Tocá el punto inicial para cerrar la figura. Enter/Esc/doble-clic termina. Shift = 45°.",
     curve:"Toca INICIO y FIN: la pared sale curva. Luego arrastrá el rombo ◇ del centro para ajustar cuánto se curva (al centro = recta).",
@@ -2350,6 +2369,29 @@ svg.addEventListener("dblclick",async ev=>{
           doc.nodes[w.b]={x:Math.round(a.x+Math.cos(ang)*objetivo),y:Math.round(a.y+Math.sin(ang)*objetivo)};
           pushHistory(); render(); } } } } });
 
+// Ciclo B (svg-hoy.md) en el gesto más barato de aislar: mientras la caja del
+// marco se arrastra, NO se reconstruye el árbol — la caja se actualiza por
+// atributos en su nodo persistente y los candidatos (las paredes que la caja
+// tocaría) se resaltan con una clase sobre los nodos ya pintados, que son
+// estables justamente porque nadie re-renderiza. Al soltar, un render completo.
+function marquesinaViva(){
+  if(!action||action.type!=="marquee") return;
+  let rc=svg.querySelector("#gVivoMarco");
+  if(!rc){ rc=el("rect",{id:"gVivoMarco",fill:"var(--blue)","fill-opacity":.08,stroke:"var(--blue)","stroke-width":1,
+    "vector-effect":"non-scaling-stroke",style:"pointer-events:none"}); svg.appendChild(rc); }
+  rc.setAttribute("x",Math.min(action.x0,action.x1)); rc.setAttribute("y",Math.min(action.y0,action.y1));
+  rc.setAttribute("width",Math.abs(action.x1-action.x0)); rc.setAttribute("height",Math.abs(action.y1-action.y0));
+  rc.setAttribute("stroke-dasharray",(6/scale)+" "+(4/scale));
+  const r2={x1:Math.min(action.x0,action.x1),y1:Math.min(action.y0,action.y1),
+            x2:Math.max(action.x0,action.x1),y2:Math.max(action.y0,action.y1)};
+  const ahora=new Set(marqueeSelect(r2).filter(s=>s.type==="wall").map(s=>s.id));
+  const antes=action._cand||new Set();
+  const marcar=(id,on)=>svg.querySelectorAll(`[data-kind="wall"][data-id="${id}"]`).forEach(n=>{
+    if((n.getAttribute("stroke")||"")!=="transparent") n.classList.toggle("cand",on); });
+  for(const id of ahora) if(!antes.has(id)) marcar(id,true);
+  for(const id of antes) if(!ahora.has(id)) marcar(id,false);
+  action._cand=ahora;
+}
 function onDown(ev){
   if(esPalma(ev)) return;                 // la mano apoyada no dibuja ni selecciona
   if(dedoEnModoLapiz(ev)) return;         // el lápiz está dibujando: el dedo no dibuja ni selecciona
@@ -2359,6 +2401,7 @@ function onDown(ev){
   // siguiente toque. Muere acá, ANTES de robarse arrOrigen (el dueño del gesto).
   if(ev.pointerType==="touch"&&tPointers.size>=2&&pinch) return;
   ev.preventDefault(); try{ svg.setPointerCapture&&svg.setPointerCapture(ev.pointerId); }catch(_){} // si falla no debe abortar la selección
+  invalidarRectLienzo(); // el rect fresco al ARRANCAR el gesto; los moves usan el caché
   arrOrigen={x:ev.clientX,y:ev.clientY,tipo:ev.pointerType,pid:ev.pointerId}; // origen y DUEÑO del gesto: histéresis + solo su dedo lo mueve o lo suelta
   const w=toWorld(ev);
   // vista cliente = solo lectura: solo navegar (mano, botón medio, Shift+arrastre); nada se edita
@@ -2576,12 +2619,7 @@ function startSelect(ev,w){
       action=ph?{type:"photomove",ph,dx:w.x-ph.x,dy:w.y-ph.y,moved:false}:null; render(); return; }
     if(k==="dim"){ setSel([{type:"dim",id}]); render(); return; }
   }
-  // Con ⊕ SUMAR activo, el vacío apaga el modo y CONSERVA lo elegido: apagar
-  // la herramienta no puede costar la selección que se estaba armando.
-  if(modoSumar){ modoSumar=false;
-    avisar("⊕ Sumar apagado — "+(selection.length?("quedan "+selection.length+" elegidos."):"sin selección."));
-    render(); return; }
-  // Último recurso ANTES de deseleccionar: el blanco DOM de una pared mide ±11 px
+  // Último recurso ANTES del vacío: el blanco DOM de una pared mide ±11 px
   // (la mitad del mínimo táctil) y con dedo 2 de 5 taps fallaban — y el fallo
   // encima BORRABA la selección. Un rescate geométrico con el radio del puntero
   // salva el tap cercano; arma también el arrastre, igual que el acierto por DOM.
@@ -2589,8 +2627,12 @@ function startSelect(ev,w){
   if(capaViva("structure")){ const nwF=nearestWall(w,radioSelPx(ev.pointerType)/scale);
     if(nwF){ const wl=nwF.w; setSel([{type:"wall",id:wl.id}]);
       action={type:"wall",id:wl.id,sx:w.x,sy:w.y,a0:{...N(wl.a)},b0:{...N(wl.b)},wall:wl,moved:false}; render(); return; } }
-  // Elegir: tocar en vacío deselecciona (la selección por CAJA es la herramienta Marco)
-  setSel([]); render();
+  // ELEGIR ES LA FLECHA COMPLETA (Illustrator/Figma/AutoCAD): el vacío arma la
+  // MISMA marquesina del Marco — tap corto deselecciona (o apaga ⊕ Sumar
+  // conservando el grupo) y arrastre encierra con la caja; todo se resuelve en
+  // el up, en la rama marquee que ya existe. Marco queda como alias.
+  if(ev.pointerType==="mouse"&&ev.button!==0){ setSel([]); render(); return; } // botón secundario: solo deselecciona
+  action={type:"marquee",x0:w.x,y0:w.y,x1:w.x,y1:w.y,downK:null,downId:null}; render();
 }
 
 function onMove(ev){
@@ -2622,7 +2664,7 @@ function onMove(ev){
       else action={type:"noop"};
       return; }
     if(action.type==="noop") return;
-    if(action.type==="marquee"){ action.x1=w.x; action.y1=w.y; pedirRender(true); return; }
+    if(action.type==="marquee"){ action.x1=w.x; action.y1=w.y; marquesinaViva(); return; }
     if(action.type==="ohandle"){ const o=action.o; const wl=doc.walls.find(x=>x.id===o.wallId);
       if(wl){ const L=wallLen(wl); const pr=projectOnWall(wl,w); const pd=pr.t*L;
         let a=o.d-o.width/2, b=o.d+o.width/2;
