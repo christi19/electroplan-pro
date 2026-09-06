@@ -151,7 +151,44 @@ await c.prueba('cancelar a la mitad no deja ningun estado roto', async () => {
   afirmar(roto.panel, 'el panel quedo vacio tras cancelar');
 });
 
+await c.prueba('con un dialogo abierto, el teclado NO llega al plano por detras', async () => {
+  // Antes: con el formulario abierto, Delete borraba la seleccion del plano y
+  // las letras cambiaban de herramienta, sin que el usuario lo viera.
+  await page.click('.tabs button[data-tab="insp"]');
+  await elegirHerramienta(page, 'select');
+  const p = await puntoLienzo(page, 0.5, 0.5);
+  await page.mouse.click(p.x, p.y);
+  const antes = await contarElementos(page);
+  const herrAntes = await page.evaluate(() => document.querySelector('.tool.on')?.dataset.tool);
+
+  await page.click('.tabs button[data-tab="bodega"]');
+  await page.waitForSelector('#bodLista', { timeout: 5000 });
+  await page.click('#bodAdd');
+  await page.waitForSelector('#bfNom', { timeout: 5000 });
+  await page.evaluate(() => document.getElementById('bfOk').focus());
+  await page.keyboard.press('Delete');
+  await page.keyboard.press('t');
+
+  afirmarIgual(await contarElementos(page), antes,
+    'Delete borro trabajo del plano con un dialogo abierto');
+  afirmarIgual(await page.evaluate(() => document.querySelector('.tool.on')?.dataset.tool),
+    herrAntes, 'una letra cambio la herramienta por detras del dialogo');
+  await page.click('#bfNo');
+  await page.waitForFunction(() => !document.querySelector('#bfNom'), null, { timeout: 5000 });
+});
+
+await c.prueba('cerrado el dialogo, el teclado vuelve a funcionar', async () => {
+  await page.click('.tabs button[data-tab="insp"]');
+  const herrAntes = await page.evaluate(() => document.querySelector('.tool.on')?.dataset.tool);
+  await page.evaluate(() => document.getElementById('canvas').focus());
+  await page.keyboard.press('t');
+  const ahora = await page.evaluate(() => document.querySelector('.tool.on')?.dataset.tool);
+  afirmar(ahora !== herrAntes, 'la guarda dejo el teclado muerto para siempre');
+});
+
 await c.prueba('cerrar el dialogo tocando afuera tampoco rompe nada', async () => {
+  await page.click('.tabs button[data-tab="bodega"]');   // la prueba previa cambio de pestana
+  await page.waitForSelector('#bodAdd', { timeout: 5000 });
   await page.click('#bodAdd');
   await page.waitForSelector('#bfNom', { timeout: 5000 });
   await page.mouse.click(8, 8);                                // fuera de la tarjeta

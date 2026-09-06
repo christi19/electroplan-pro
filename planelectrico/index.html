@@ -4341,10 +4341,16 @@ window.addEventListener("pointerup",end3,true);
 window.addEventListener("pointercancel",end3,true);
 
 /* ===================== Diálogos propios (prompt/confirm del navegador están bloqueados en el visor) ===================== */
-function uiModal(html){ const m=document.createElement("div");
+function uiModal(html){ const m=document.createElement("div"); m.className="uimodal";
   m.style.cssText="position:fixed;inset:0;background:rgba(4,10,22,.72);z-index:100;display:flex;align-items:center;justify-content:center;padding:20px";
   m.innerHTML='<div style="background:var(--panel);border:1px solid var(--line2);border-radius:12px;max-width:400px;width:100%;padding:18px">'+html+'</div>';
   document.body.appendChild(m); return m; }
+// ¿Hay un diálogo tapando la app? Los atajos globales NO deben atravesarlo:
+// con un modal abierto, Delete borraba la selección del plano por DETRÁS y las
+// letras cambiaban de herramienta, todo sin que el usuario lo viera.
+function hayModal(){ return !!document.querySelector(
+  ".uimodal,#tutomodal,#projmodal,#blkmodal,#cargmodal,#unimodal"); }
+
 function pedir(titulo,def,tipo){ return new Promise(res=>{
   const m=uiModal('<div class="kdt" style="margin-bottom:10px">'+titulo+'</div>'+
     '<input id="uiIn" type="'+(tipo||"text")+'" value="'+String(def!=null?def:"").replace(/"/g,"&quot;")+'" style="width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:7px;color:var(--ink);padding:9px;font-size:14px">'+
@@ -5159,6 +5165,7 @@ function download(name,type,data){ const b=new Blob([data],{type}); const u=URL.
 // teclado
 window.addEventListener("keydown",e=>{
   if(e.target.tagName==="INPUT"||e.target.tagName==="TEXTAREA"||e.target.tagName==="SELECT") return;
+  if(hayModal()) return;   // un diálogo abierto se lleva el teclado entero
   // vista cliente = solo lectura: solo se permite Esc y deshacer/rehacer
   if(vistaCliente&&e.key!=="Escape"&&!((e.ctrlKey||e.metaKey)&&["z","y"].includes(e.key.toLowerCase()))) return;
   if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="z"){ e.preventDefault(); e.shiftKey?redo():undo(); return; }
