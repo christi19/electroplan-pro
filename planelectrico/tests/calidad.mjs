@@ -206,5 +206,46 @@ await c.prueba('un arrastre con el dedo en el lienzo no rompe los paneles nuevos
 
 await tac.browser.close();
 
+// ------------------------------------------- telefono chico con teclado abierto
+// Cuando se abre el teclado, la ventana visible se parte casi al medio. Es el
+// caso donde un formulario largo esconde su boton Guardar sin dejar como llegar.
+const chico = await abrirNavegador();
+const cpage = await chico.context.newPage();
+await cpage.setViewportSize({ width: 360, height: 380 });
+await cpage.goto(new URL('file://' + process.cwd() + '/' + ARCHIVO).href);
+await cpage.waitForFunction(
+  () => document.querySelectorAll('.tool[data-tool]').length >= 10, null, { timeout: 20000 });
+await cpage.evaluate(() => {
+  document.getElementById('tutomodal')?.remove();
+  document.querySelector('.tabs button[data-tab="bodega"]').click();
+});
+
+await c.prueba('en un telefono chico con teclado, Guardar sigue alcanzable', async () => {
+  await cpage.waitForSelector('#bodLista', { timeout: 5000 });
+  await cpage.click('#bodAdd');
+  await cpage.waitForSelector('#bfNom', { timeout: 5000 });
+  const r = await cpage.evaluate(() => {
+    const ok = document.getElementById('bfOk').getBoundingClientRect();
+    const form = document.querySelector('.bodform');
+    return { dentro: ok.bottom <= innerHeight && ok.top >= 0,
+             scrollea: form ? form.scrollHeight > form.clientHeight : null,
+             overflow: form ? getComputedStyle(form).overflowY : null };
+  });
+  afirmar(r.dentro, 'el boton Guardar quedo fuera de la pantalla');
+  afirmarIgual(r.overflow, 'auto', 'los campos no tienen scroll propio');
+  afirmar(r.scrollea, 'los campos no scrollean: el dialogo no se adapta a la pantalla');
+});
+
+await c.prueba('y se puede llegar al ultimo campo desplazando', async () => {
+  await cpage.evaluate(() => { document.querySelector('.bodform').scrollTop = 99999; });
+  const visto = await cpage.evaluate(() => {
+    const n = document.getElementById('bfNota').getBoundingClientRect();
+    return n.bottom <= innerHeight && n.top >= 0;
+  });
+  afirmar(visto, 'el ultimo campo no se alcanza ni desplazando');
+});
+
+await chico.browser.close();
+
 const verde = c.resumen();
 process.exit(verde ? 0 : 1);

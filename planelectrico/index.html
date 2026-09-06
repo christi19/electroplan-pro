@@ -287,6 +287,9 @@
   .bodbtn{min-width:44px;min-height:44px;background:none;border:0;border-radius:8px;
     font-size:15px;cursor:pointer;color:var(--soft);flex:none;}
   .bodbtn:hover{background:var(--panel2);}
+  /* Los campos scrollean dentro del dialogo: con el teclado del telefono
+     abierto, el boton Guardar tiene que seguir alcanzable. */
+  .bodform{max-height:52vh;overflow-y:auto;overscroll-behavior:contain;}
   .bodabrir{background:none;border:0;padding:0;text-align:left;cursor:pointer;
     min-height:44px;display:flex;flex-direction:column;justify-content:center;}
   .bodrow.revertido{opacity:.55;}
@@ -3758,6 +3761,7 @@ function bodEditar(id){
   const sitios=bodUbicPlano();
   const m=uiModal(
     `<div class="kdt" style="margin-bottom:10px">${nuevo?"➕ Agregar a la bodega":"✏️ Editar"}</div>`+
+    `<div class="bodform">`+
     field("¿Qué es?",`<input id="bfNom" class="bodinp" value="${bodEsc(v.nombre)}" `+
       `placeholder="Taladro, cable #12, breaker 20A…">`)+
     field("Tipo",`<select id="bfCat" class="bodinp">`+BOD_CATS.map(([k,n])=>
@@ -3776,6 +3780,7 @@ function bodEditar(id){
       `min="0" step="any" value="${+v.minimo||0}" placeholder="0 = no avisar">`)+
     field("Código o marca (opcional)",`<input id="bfCod" class="bodinp" value="${bodEsc(v.codigo||"")}">`)+
     field("Nota (opcional)",`<input id="bfNota" class="bodinp" value="${bodEsc(v.nota||"")}">`)+
+    `</div>`+
     `<div class="row" style="margin-top:12px">`+
       `<button id="bfOk" style="flex:1;justify-content:center;background:var(--blue);border-color:var(--blue);color:#fff">Guardar</button>`+
       `<button id="bfNo" class="ghost" style="flex:1;justify-content:center">Cancelar</button></div>`+
@@ -3835,7 +3840,7 @@ function bodEditarSitios(){
     `<div class="kdt" style="margin-bottom:6px">📍 Sitios de la bodega</div>`+
     `<div class="muted" style="margin-bottom:10px">Armalos como los tenés de verdad: `+
       `la bodega con sus estantes, la buseta, cada obra.</div>`+
-    `<div id="bsLista"></div>`+
+    `<div id="bsLista" class="bodform"></div>`+
     `<button id="bsAdd" class="bodadd" style="margin-top:10px">➕ Sitio nuevo</button>`+
     `<button id="bsCerrar" class="ghost" style="width:100%;justify-content:center;margin-top:8px">Listo</button>`);
   const refrescar=()=>{
@@ -3901,6 +3906,15 @@ function bodSugerencia(art){
   });
   return mejorPuntos>0?mejor:null;
 }
+// La misma cosa puede estar en varios sitios: trasladar una parte la reparte en
+// una fila por sitio (60 m en la bodega + 40 m en la buseta siguen siendo 100 m).
+// El puente suma TODAS sus filas; si mirara una sola, el electricista veria menos
+// material del que tiene justo despues de usar el traslado.
+function bodGrupoDe(it){
+  const n=bodNorm(it.nombre);
+  return bodega.items.filter(x=>x.unidad===it.unidad&&bodNorm(x.nombre)===n);
+}
+
 // El enlace confirmado manda siempre sobre la sugerencia automática.
 function bodItemDe(art){
   const id=(bodega.enlaces||{})[art.key];
@@ -3919,9 +3933,12 @@ function bodCruce(){
   const {cub,grupos,claves}=matGrupos();
   const filas=cub.articulos.map(a=>{
     const m=bodItemDe(a);
-    const tengo=m?(+m.it.cantidad||0):null;
+    const grupo=m?bodGrupoDe(m.it):null;
+    const tengo=grupo?grupo.reduce((t,x)=>t+(+x.cantidad||0),0):null;
+    const sitios=grupo?grupo.filter(x=>(+x.cantidad||0)>0).length:0;
     const falta=tengo==null?null:Math.max(0,Math.round((a.quantity-tengo)*100)/100);
-    return {art:a, item:m?m.it:null, confirmado:!!(m&&m.confirmado), tengo, falta};
+    return {art:a, item:m?m.it:null, grupo, sitios,
+            confirmado:!!(m&&m.confirmado), tengo, falta};
   });
   return {cub,grupos,claves,filas,
     porClave:Object.fromEntries(filas.map(f=>[f.art.key,f]))};
@@ -3980,8 +3997,15 @@ async function bodElegirEnlace(clave,nombreArt){
   const art=matGrupos().cub.articulos.find(x=>x.key===clave);   // UNA sola vez
   const compat=bodega.items.filter(it=>!art||bodMismaMedida(art.unit,it.unidad));
   if(!compat.length){ avisar("No tenés nada en bodega que se mida igual que "+nombreArt+"."); return; }
-  const ops=compat.map(it=>({k:it.id,txt:bodEsc(it.nombre)+" — "+matNum(it.cantidad)+" "+
-    bodEsc(it.unidad)+" · "+bodEsc(bodRuta(it.ubicacionId))}));
+  // Una opcion por COSA (no por fila): si esta repartida, se ofrece una sola vez
+  // con el total, o el electricista tendria que adivinar cual de dos elegir.
+  const vistos=new Set(), ops=[];
+  compat.forEach(it=>{ const clave=it.unidad+"|"+bodNorm(it.nombre);
+    if(vistos.has(clave)) return; vistos.add(clave);
+    const g=bodGrupoDe(it), total=g.reduce((t,x)=>t+(+x.cantidad||0),0);
+    const donde=g.length>1?g.length+" sitios":bodRuta(it.ubicacionId);
+    ops.push({k:it.id,txt:bodEsc(it.nombre)+" — "+matNum(total)+" "+
+      bodEsc(it.unidad)+" · "+bodEsc(donde)}); });
   ops.push({k:"__none",txt:"⛔ Ninguna: no lo tengo"});
   const r=await pedirOpcion("¿Cuál de tu bodega es «"+bodEsc(nombreArt)+"»?",ops);
   if(r==null) return;
@@ -4039,10 +4063,11 @@ function renderMateriales(p){
     const f=cruce.porClave[a.key]||{tengo:null};
     let cruceTxt="";
     if(hayBodega){
+      const reparto=f.sitios>1?` en ${f.sitios} sitios`:"";
       if(f.tengo==null) cruceTxt=`<small class="mc falta">no está en tu bodega</small>`;
-      else if(f.falta>0) cruceTxt=`<small class="mc falta">tenés ${matNum(f.tengo)} · faltan ${matNum(f.falta)}`+
+      else if(f.falta>0) cruceTxt=`<small class="mc falta">tenés ${matNum(f.tengo)}${reparto} · faltan ${matNum(f.falta)}`+
         `${f.confirmado?"":" ·&nbsp;?"}</small>`;
-      else cruceTxt=`<small class="mc ok">ya lo tenés (${matNum(f.tengo)})${f.confirmado?"":" ·&nbsp;?"}</small>`;
+      else cruceTxt=`<small class="mc ok">ya lo tenés (${matNum(f.tengo)}${reparto})${f.confirmado?"":" ·&nbsp;?"}</small>`;
     }
     return `<div class="bodrow" data-mat="${bodEsc(a.key)}">`+
       `<span class="bodnom"><b>${bodEsc(a.name)}</b>${cruceTxt}</span>`+

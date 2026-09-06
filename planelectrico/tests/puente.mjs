@@ -147,6 +147,47 @@ await c.prueba('el cruce se actualiza al cambiar el stock, sin tocar el plano', 
     'el cruce no reacciono al cambio de stock');
 });
 
+await c.prueba('TRASLADAR parte del material NO descuadra el puente', async () => {
+  // El traslado reparte la misma cosa en una fila por sitio. Si el puente
+  // mirara una sola fila, el electricista veria MENOS material justo despues
+  // de usar una funcion que el propio modulo le dio.
+  await irA('mat');
+  const antes = await cruceDe('cable');
+  const totalAntes = parseFloat((antes.texto.match(/[\d.]+/) || [])[0]);
+  afirmar(totalAntes > 0, `no pude leer el total previo: "${antes.texto}"`);
+
+  await irA('bodega');
+  const idx = await page.evaluate(() => [...document.querySelectorAll('#bodLista [data-bitem]')]
+    .findIndex(r => /Cable/i.test(r.querySelector('.bodnom b').textContent)));
+  afirmar(idx >= 0, 'no encuentro el cable en la bodega');
+  await page.click(`#bodLista [data-bitem]:nth-of-type(${idx + 1}) [data-bmov]`);
+  await page.waitForSelector('[data-k="traslado"]', { timeout: 5000 });
+  await page.click('[data-k="traslado"]');
+  await page.waitForSelector('#uiIn', { timeout: 5000 });
+  await esperarFoco(page, 'uiIn');
+  await page.fill('#uiIn', String(Math.round(totalAntes / 2)));
+  await page.click('#uiOk');
+  await page.waitForSelector('[data-k]', { timeout: 5000 });
+  const destino = await page.evaluate(() =>
+    [...document.querySelectorAll('[data-k]')].find(b => /Buseta/i.test(b.textContent))?.dataset.k);
+  afirmar(destino, 'no ofrecio la Buseta como destino');
+  await page.click(`[data-k="${destino}"]`);
+  await page.waitForSelector('#bodLista', { timeout: 5000 });
+
+  const filas = await page.evaluate(() =>
+    [...document.querySelectorAll('#bodLista [data-bitem]')]
+      .filter(r => /Cable/i.test(r.querySelector('.bodnom b').textContent)).length);
+  afirmarIgual(filas, 2, 'el traslado no partio la cosa en dos sitios');
+
+  await irA('mat');
+  const despues = await cruceDe('cable');
+  const totalDespues = parseFloat((despues.texto.match(/[\d.]+/) || [])[0]);
+  afirmarIgual(totalDespues, totalAntes,
+    `el puente perdio material al trasladar: ${totalAntes} -> ${totalDespues}`);
+  afirmar(/2 sitios/.test(despues.texto),
+    `no avisa que esta repartido: "${despues.texto}"`);
+});
+
 await c.prueba('el puente no genero errores de JS', async () => {
   afirmarIgual(page.__errores.length, 0, `errores: ${page.__errores.join(' | ')}`);
 });
