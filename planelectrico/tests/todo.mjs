@@ -5,7 +5,7 @@
 import { spawnSync } from 'node:child_process';
 
 const ARCHIVO = process.argv[2] || 'PlanElectricoPro.html';
-const SUITES = ['regresion', 'bodega', 'materiales', 'puente', 'movimientos', 'calidad', 'recorrido'];
+const SUITES = ['regresion', 'bodega', 'materiales', 'puente', 'movimientos', 'calidad', 'recorrido', 'seleccion'];
 
 let fallaron = 0;
 for (const s of SUITES) {

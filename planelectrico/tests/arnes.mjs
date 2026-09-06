@@ -147,19 +147,25 @@ export async function arrastrarMouse(page, desde, hasta, pasos = 12) {
  */
 export async function arrastrarDedo(page, desde, hasta, { pasos = 12, tipo = 'touch', id = 1 } = {}) {
   await page.evaluate(async ([d, h, n, tipo, pid]) => {
-    const enPunto = p => document.elementFromPoint(p.x, p.y) || document.getElementById('canvas');
+    const svg = document.getElementById('canvas');
     const ev = (tgt, nombre, p, extra = {}) => tgt.dispatchEvent(new PointerEvent(nombre, {
       pointerId: pid, pointerType: tipo, isPrimary: true, bubbles: true, cancelable: true,
       clientX: p.x, clientY: p.y, buttons: nombre === 'pointerup' ? 0 : 1, ...extra,
     }));
-    const tgt = enPunto(d);
-    ev(tgt, 'pointerdown', d);
+    // El DOWN va al nodo que esta bajo el dedo, para que el hit-test elija el
+    // objeto correcto. Los MOVE ya no: render() recrea el arbol SVG y ese nodo
+    // queda huerfano, asi que los eventos siguientes no llegarian a nadie. Se
+    // despachan sobre el <svg>, que es donde la app escucha pointermove y desde
+    // donde el pointerup BURBUJEA hasta el listener de window. Despacharlo
+    // directo en window dejaria ev.target=window, que no es un Node, y revienta
+    // los handlers que hacen contains(ev.target).
+    ev(document.elementFromPoint(d.x, d.y) || svg, 'pointerdown', d);
     for (let i = 1; i <= n; i++) {
       const p = { x: d.x + (h.x - d.x) * (i / n), y: d.y + (h.y - d.y) * (i / n) };
-      ev(tgt, 'pointermove', p);
+      ev(svg, 'pointermove', p);
       await new Promise(r => requestAnimationFrame(r));
     }
-    ev(tgt, 'pointerup', h);
+    ev(svg, 'pointerup', h);
   }, [desde, hasta, pasos, tipo, id]);
 }
 

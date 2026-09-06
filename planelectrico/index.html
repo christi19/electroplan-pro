@@ -999,6 +999,26 @@ function projectOnWall(w,p){
   const L2=dx*dx+dy*dy; if(!L2)return{t:0,d:dist(a,p)};
   let t=((p.x-a.x)*dx+(p.y-a.y)*dy)/L2; t=Math.max(0,Math.min(1,t));
   const px=a.x+t*dx, py=a.y+t*dy; return {t, d:Math.hypot(p.x-px,p.y-py), x:px,y:py}; }
+// Distancia de un punto a un SEGMENTO, en unidades de mundo. No existia:
+// projectOnWall solo sirve para paredes porque necesita sus nodos.
+function distSeg(p,a,b){
+  const vx=b.x-a.x, vy=b.y-a.y, L2=vx*vx+vy*vy;
+  if(!L2) return Math.hypot(p.x-a.x,p.y-a.y);
+  let t=((p.x-a.x)*vx+(p.y-a.y)*vy)/L2; t=Math.max(0,Math.min(1,t));
+  return Math.hypot(p.x-(a.x+t*vx), p.y-(a.y+t*vy));
+}
+// El tubo y la cota mas cercanos, con el MISMO contrato que nearestWall:
+// null si no hay nada a tiro. Se usan para el rescate del tap cercano.
+function nearestRoute(p,maxd){ let best=null,bd=maxd;
+  for(const r of doc.routes){ if(!enPiso(r)||!r.pts||r.pts.length<2) continue;
+    for(let i=1;i<r.pts.length;i++){ const d=distSeg(p,r.pts[i-1],r.pts[i]);
+      if(d<bd){ bd=d; best={r,dist:d}; } } }
+  return best; }
+function nearestDim(p,maxd){ let best=null,bd=maxd;
+  for(const dm of doc.dims){ if(!enPiso(dm)||!dm.a||!dm.b) continue;
+    const d=distSeg(p,dm.a,dm.b); if(d<bd){ bd=d; best={dim:dm,dist:d}; } }
+  return best; }
+
 function nearestWall(p,maxd){ let best=null,bd=maxd||20/scale;
   for(const w of doc.walls){ if(!enPiso(w))continue; const pr=projectOnWall(w,p); if(pr.d<bd){bd=pr.d;best={w,pr};} } return best; }
 
@@ -2636,7 +2656,13 @@ function colocarElemento(cat,sp){
 // le gana a la pared y al vacío. Antes el ancla iba primero y una toma a menos de
 // 14 px de un vértice no se podía seleccionar de ninguna forma — y si el vértice
 // le quedaba justo debajo, ningún zoom la rescataba.
-const OBJ_ENCIMA={element:1,opening:1,label:1,text:1,photo:1,stair:1,route:1,dim:1};
+const // Objetos que TAPAN al ancla: si uno de estos está bajo el dedo, el agarre de
+// esquina no se activa. Existe porque el ancla se comía las tomas cercanas a un
+// vértice. Pero el tubo y la cota NO entran: son líneas largas —se agarran en
+// cualquier punto de su recorrido— mientras que un vértice tiene UN solo sitio
+// donde tocarlo. Con route/dim adentro, un tubo que terminaba en una esquina
+// dejaba ese vértice imposible de mover (defecto medido, anterior a este ciclo).
+OBJ_ENCIMA={element:1,opening:1,label:1,text:1,photo:1,stair:1};
 // Qué kinds son OBJETOS seleccionables (las agarraderas chandle/ohandle/txresize
 // y los nodos no lo son). La comparten el tap del Marco y el modo ⊕ Sumar.
 const SEL_KINDS={wall:1,element:1,label:1,text:1,opening:1,route:1,stair:1,photo:1,dim:1};
@@ -2679,11 +2705,24 @@ function startSelect(ev,w){
   const ancla=(nn&&anclaDibujada(nn)&&!(k&&id&&OBJ_ENCIMA[k]))?nn:null;
   // Ctrl del mouse y ⊕ Sumar del dedo son el MISMO modificador (regla 21).
   const sumar=ctrl||modoSumar;
-  // Ctrl/⊕ sobre una esquina: el ancla no es un objeto seleccionable, así que
-  // lo que el usuario quiere sumar a la selección es la pared que pasa por ahí.
-  // capaViva: nearestWall no mira candados y este camino se saltaba la regla —
-  // con Estructura bloqueada, cada tap cercano metía una pared protegida.
-  if(sumar&&capaViva("structure")&&(!k||!id||k==="node")){ const nw=nearestWall(w,22/scale); if(nw){ k="wall"; id=nw.w.id; } }
+  // Ctrl/⊕ sobre una esquina o cerca de una línea: el ancla no es un objeto
+  // seleccionable, así que lo que el usuario quiere sumar a la selección es el
+  // objeto que pasa por ahí. capaViva: los nearest* no miran candados y este
+  // camino se saltaba la regla — con Estructura bloqueada, cada tap cercano
+  // metía una pared protegida.
+  // Antes solo se rescataba la PARED. Desde que el tap cercano también rescata
+  // tubos y cotas, sumar tenía que seguirle el paso: si no, un Ctrl mal apuntado
+  // cerca de un tubo caía en el rescate de abajo y REEMPLAZABA la selección
+  // entera en vez de agrandarla. Gana el más cercano, igual que allá.
+  if(sumar&&(!k||!id||k==="node")){
+    const tolS=22/scale; let m=null;
+    if(capaViva("structure")){ const nw=nearestWall(w,tolS);
+      if(nw) m={d:nw.pr.d,k:"wall",id:nw.w.id}; }
+    if(capaViva("electrical")){ const nr=nearestRoute(w,tolS);
+      if(nr&&(!m||nr.dist<m.d)) m={d:nr.dist,k:"route",id:nr.r.id}; }
+    if(capaViva("labels")){ const nd=nearestDim(w,tolS);
+      if(nd&&(!m||nd.dist<m.d)) m={d:nd.dist,k:"dim",id:nd.dim.id}; }
+    if(m){ k=m.k; id=m.id; } }
   // El toggle se DIFIERE al soltar: en el down no se sabe si esto es un tap
   // (sumar/quitar) o un arrastre. Decidirlo acá hacía que arrastrar lo recién
   // sumado lo des-sumara, y que un pellizco iniciado sobre una pared
@@ -2718,21 +2757,54 @@ function startSelect(ev,w){
       if(o){ const wl=doc.walls.find(x=>x.id===o.wallId);
         if(wl){ const L=wallLen(wl); off=projectOnWall(wl,w).t*L-(o.d!=null?o.d:L/2); } }
       action=o?{type:"omove",o,off,moved:false}:null; render(); return; }
-    if(k==="route"){ setSel([{type:"route",id}]); render(); return; }
+    // El tubo era el UNICO objeto que se dejaba elegir y despues no respondia al
+    // dedo: esta rama armaba la seleccion y salia sin action, a diferencia de sus
+    // hermanas stair/photo. Se guardan los puntos originales (pts0) porque el
+    // movimiento es RIGIDO: el iman se resuelve UNA vez sobre el desplazamiento y
+    // el MISMO delta va a todos los puntos. Redondear cada punto por su cuenta
+    // haria que el tubo CAMBIARA DE LARGO con solo moverlo — la regresion que ya
+    // costo la pared.
+    if(k==="route"){ setSel([{type:"route",id}]); const r=doc.routes.find(x=>x.id===id);
+      action=r?{type:"routemove",r,pts0:r.pts.map(p=>({x:p.x,y:p.y})),sx:w.x,sy:w.y,moved:false}:null;
+      render(); return; }
     if(k==="stair"){ setSel([{type:"stair",id}]); const st=doc.stairs.find(x=>x.id===id);
       action=st?{type:"stairmove",st,dx:w.x-st.x,dy:w.y-st.y,moved:false}:null; render(); return; }
     if(k==="photo"){ setSel([{type:"photo",id}]); const ph=doc.photos.find(x=>x.id===id);
       action=ph?{type:"photomove",ph,dx:w.x-ph.x,dy:w.y-ph.y,moved:false}:null; render(); return; }
-    if(k==="dim"){ setSel([{type:"dim",id}]); render(); return; }
+    // La cota guarda COPIAS de sus dos puntos (commitDim hace a:{...draft.start}),
+    // no ids de nodo: moverla mueve la cota y nada mas. La casa no se deforma.
+    if(k==="dim"){ setSel([{type:"dim",id}]); const d=doc.dims.find(x=>x.id===id);
+      action=d?{type:"dimmove",d,a0:{...d.a},b0:{...d.b},sx:w.x,sy:w.y,moved:false}:null;
+      render(); return; }
   }
-  // Último recurso ANTES del vacío: el blanco DOM de una pared mide ±11 px
-  // (la mitad del mínimo táctil) y con dedo 2 de 5 taps fallaban — y el fallo
+  // Último recurso ANTES del vacío: el blanco DOM de una línea mide ±8..11 px
+  // (la mitad del mínimo táctil) y con dedo el tap cercano fallaba — y el fallo
   // encima BORRABA la selección. Un rescate geométrico con el radio del puntero
-  // salva el tap cercano; arma también el arrastre, igual que el acierto por DOM.
-  // Con mouse (radio 10 < ±11 del trazo gemelo) el escritorio no cambia nada.
-  if(capaViva("structure")){ const nwF=nearestWall(w,radioSelPx(ev.pointerType)/scale);
-    if(nwF){ const wl=nwF.w; setSel([{type:"wall",id:wl.id}]);
-      action={type:"wall",id:wl.id,sx:w.x,sy:w.y,a0:{...N(wl.a)},b0:{...N(wl.b)},wall:wl,moved:false}; render(); return; } }
+  // lo salva; arma también el arrastre, igual que el acierto por DOM.
+  // Antes se rescataba SOLO la pared y el tubo y la cota quedaban imposibles de
+  // agarrar (medido: 8 px de alcance). Engordar su halo en el DOM no servía:
+  // gElem y gDim van ENCIMA de gWalls, así que un tubo gordo le robaría los taps
+  // a la pared. Acá gana el MÁS CERCANO —sin prioridades inventadas— y como este
+  // camino solo corre cuando el DOM no acertó nada, no le puede robar el tap a
+  // nadie. Cada capa se consulta con capaViva: lo bloqueado no se rescata.
+  {
+    const tol=radioSelPx(ev.pointerType)/scale;
+    let mejor=null;
+    if(capaViva("structure")){ const nw=nearestWall(w,tol);
+      if(nw) mejor={d:nw.pr.d,k:"wall",o:nw.w}; }
+    if(capaViva("electrical")){ const nr=nearestRoute(w,tol);
+      if(nr&&(!mejor||nr.dist<mejor.d)) mejor={d:nr.dist,k:"route",o:nr.r}; }
+    if(capaViva("labels")){ const nd=nearestDim(w,tol);
+      if(nd&&(!mejor||nd.dist<mejor.d)) mejor={d:nd.dist,k:"dim",o:nd.dim}; }
+    if(mejor){
+      if(mejor.k==="wall"){ const wl=mejor.o; setSel([{type:"wall",id:wl.id}]);
+        action={type:"wall",id:wl.id,sx:w.x,sy:w.y,a0:{...N(wl.a)},b0:{...N(wl.b)},wall:wl,moved:false}; }
+      else if(mejor.k==="route"){ const r=mejor.o; setSel([{type:"route",id:r.id}]);
+        action={type:"routemove",r,pts0:r.pts.map(p=>({x:p.x,y:p.y})),sx:w.x,sy:w.y,moved:false}; }
+      else { const dm=mejor.o; setSel([{type:"dim",id:dm.id}]);
+        action={type:"dimmove",d:dm,a0:{...dm.a},b0:{...dm.b},sx:w.x,sy:w.y,moved:false}; }
+      render(); return; }
+  }
   // ELEGIR ES LA FLECHA COMPLETA (Illustrator/Figma/AutoCAD): el vacío arma la
   // MISMA marquesina del Marco — tap corto deselecciona (o apaga ⊕ Sumar
   // conservando el grupo) y arrastre encierra con la caja; todo se resuelve en
@@ -2805,6 +2877,15 @@ function onMove(ev){
       action.st.y=snapNum(w.y-action.dy); action.moved=true; pedirRender(true); return; }
     if(action.type==="photomove"){ action.ph.x=snapNum(w.x-action.dx);
       action.ph.y=snapNum(w.y-action.dy); action.moved=true; pedirRender(true); return; }
+    // Tubo y cota se mueven RIGIDOS: un solo delta imantado para todos sus
+    // puntos, el mismo criterio que usa el movimiento en grupo (action.rts).
+    if(action.type==="routemove"){ const dx=snapNum(w.x-action.sx), dy=snapNum(w.y-action.sy);
+      action.r.pts=action.pts0.map(p=>({x:p.x+dx,y:p.y+dy}));
+      action.moved=true; pedirRender(true); return; }
+    if(action.type==="dimmove"){ const dx=snapNum(w.x-action.sx), dy=snapNum(w.y-action.sy);
+      action.d.a={x:action.a0.x+dx,y:action.a0.y+dy};
+      action.d.b={x:action.b0.x+dx,y:action.b0.y+dy};
+      action.moved=true; pedirRender(true); return; }
     if(action.type==="node"){ const rx=w.x-(action.dx||0), ry=w.y-(action.dy||0);
       doc.nodes[action.id]={x:snapNum(rx),y:snapNum(ry)}; action.moved=true; pedirRender(true); return; }
     if(action.type==="wall"){ const dx=w.x-action.sx, dy=w.y-action.sy; action.moved=true;
