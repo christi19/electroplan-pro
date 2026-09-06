@@ -253,10 +253,14 @@ await c.prueba('el halo mas gordo no le roba el tap a un simbolo cercano', async
     return { id: n.getAttribute('data-id'), x: r.left + r.width / 2, y: r.top + r.height / 2 };
   });
   await page.mouse.click(centro.x, centro.y);
-  const elegido = await page.evaluate(() =>
-    document.getElementById('ctxbar')?.textContent?.replace(/\s+/g, ' ').trim().slice(0, 40) || '');
-  afirmar(!/tuber|tubo/i.test(elegido),
-    `tocando la toma se eligio el tubo: "${elegido}"`);
+  // FALSO VERDE corregido: esta asercion leia #ctxbar, que en escritorio vive
+  // OCULTO. textContent daba "" y !/tuber/.test("") pasaba SIEMPRE — la prueba
+  // no medía nada. El inspector (#panelbody) es el que de verdad dice qué quedó
+  // elegido, y ahora además se exige el resultado POSITIVO: tocando la toma
+  // tiene que quedar elegida la toma, no basta con que no salga el tubo.
+  const q = await elegido();
+  afirmar(!/tuber|canaliz/i.test(q), `tocando la toma se eligio el tubo: "${q.slice(0, 60)}"`);
+  afirmar(/toma|tomacorriente/i.test(q), `tocando la toma no quedo elegida la toma: "${q.slice(0, 60)}"`);
 });
 
 await c.prueba('arrastrar en el vacio sigue haciendo marquesina', async () => {

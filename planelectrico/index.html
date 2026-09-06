@@ -1019,6 +1019,20 @@ function nearestDim(p,maxd){ let best=null,bd=maxd;
     const d=distSeg(p,dm.a,dm.b); if(d<bd){ bd=d; best={dim:dm,dist:d}; } }
   return best; }
 
+// Distancia de un punto a un objeto CONCRETO (tubo o cota), no al mas cercano de
+// todos. La usa startSelect para decidir quien esta mas cerca cuando el DOM
+// acerto una linea larga y ademas hay un vertice dentro del radio del puntero.
+function distAObj(kind,id,p){
+  if(kind==="route"){ const r=doc.routes.find(x=>x.id===id);
+    if(!r||!r.pts||r.pts.length<2) return null;
+    let m=Infinity;
+    for(let i=1;i<r.pts.length;i++) m=Math.min(m,distSeg(p,r.pts[i-1],r.pts[i]));
+    return m; }
+  if(kind==="dim"){ const d=doc.dims.find(x=>x.id===id);
+    return (d&&d.a&&d.b)?distSeg(p,d.a,d.b):null; }
+  return null;
+}
+
 function nearestWall(p,maxd){ let best=null,bd=maxd||20/scale;
   for(const w of doc.walls){ if(!enPiso(w))continue; const pr=projectOnWall(w,p); if(pr.d<bd){bd=pr.d;best={w,pr};} } return best; }
 
@@ -2172,7 +2186,14 @@ function arrastreMinPx(tipo){ return tipo==="touch" ? 8 : tipo==="pen" ? 4 : 3; 
 function radioSelPx(tipo){ return tipo==="touch" ? 22 : tipo==="pen" ? 14 : 10; }
 const LAPIZ_GRACIA_MS=700;
 let arrOrigen=null;   // dónde nació el gesto, en px de pantalla (histéresis del arrastre)
-let ultimoLapiz=0;
+// -Infinity y no 0: "todavia no hubo lapiz" no puede significar "hubo lapiz hace
+// 0 ms". performance.now() tambien arranca en 0 al cargar la pagina, asi que con
+// 0 la resta daba menos que la ventana de gracia durante los primeros
+// LAPIZ_GRACIA_MS de vida de la app: TODO toque de dedo —tocar, arrastrar,
+// panear, pellizcar— se descartaba como "la mano mientras el lapiz dibuja". El
+// primer toque tras abrir o recargar moria sin dejar rastro. Medido en un iPad
+// simulado con el reloj fijado dentro de la ventana.
+let ultimoLapiz=-Infinity;
 function anotarLapiz(ev){ if(ev.pointerType==="pen"&&(ev.type==="pointerdown"||ev.buttons>0)) ultimoLapiz=performance.now(); }
 function dedoEnModoLapiz(ev){ return ev.pointerType==="touch" && (performance.now()-ultimoLapiz)<LAPIZ_GRACIA_MS; }
 // --- gestos táctiles: dos dedos = pellizco (zoom) + mover lienzo ---
@@ -2702,7 +2723,18 @@ function startSelect(ev,w){
   // anclaDibujada() es la misma regla que usa render(): así nunca hay un agarre
   // donde no hay nada pintado, ni sobre una capa que el usuario mandó a bloquear.
   const nn=capaViva("structure")?nearestNode(w,Math.max(14,radioSelPx(ev.pointerType))/scale):null;
-  const ancla=(nn&&anclaDibujada(nn)&&!(k&&id&&OBJ_ENCIMA[k]))?nn:null;
+  let ancla=(nn&&anclaDibujada(nn)&&!(k&&id&&OBJ_ENCIMA[k]))?nn:null;
+  // El tubo y la cota no estan en OBJ_ENCIMA porque una linea larga se agarra en
+  // CUALQUIER punto de su recorrido y un vertice tiene UNO solo: con ellas
+  // adentro, un tubo que terminaba en una esquina dejaba el vertice imposible de
+  // mover. Pero sacarlas en bloque abrio el espejo: un tubo que PASA cerca de una
+  // esquina se volvia inagarrable, y el tap APUNTADO al tubo movia el vertice
+  // (medido: la esquina saltaba de 0,0 a 45,35 — la casa se deformaba sola).
+  // Ninguna de las dos listas sirve; sirve el mismo criterio que ya usa el
+  // rescate de abajo: gana el MAS CERCANO al puntero.
+  if(ancla&&k&&id&&(k==="route"||k==="dim")){
+    const n0=N(ancla), dNodo=Math.hypot(w.x-n0.x,w.y-n0.y), dLin=distAObj(k,id,w);
+    if(dLin!=null&&dLin<dNodo) ancla=null; }
   // Ctrl del mouse y ⊕ Sumar del dedo son el MISMO modificador (regla 21).
   const sumar=ctrl||modoSumar;
   // Ctrl/⊕ sobre una esquina o cerca de una línea: el ancla no es un objeto
@@ -2797,6 +2829,14 @@ function startSelect(ev,w){
     if(capaViva("labels")){ const nd=nearestDim(w,tol);
       if(nd&&(!mejor||nd.dist<mejor.d)) mejor={d:nd.dist,k:"dim",o:nd.dim}; }
     if(mejor){
+      // Con un grupo vivo, el rescate NO puede reemplazarlo. La guarda de
+      // seleccion multiple de arriba solo corre cuando el DOM acierta; si el dedo
+      // cae en el HUECO al lado de un miembro (fuera del halo de 16px pero dentro
+      // del radio de 22 del dedo), el gesto llegaba aca y hacia setSel([uno]):
+      // el grupo entero se perdia justo al intentar agarrarlo. Medido: 11 -> 1.
+      // Encontrar un miembro significa "agarrar el grupo por aca", igual que
+      // cuando el acierto por DOM cae sobre uno de ellos.
+      if(selection.length>1&&isSelected(mejor.k,mejor.o.id)){ beginMoveSel(w); return; }
       if(mejor.k==="wall"){ const wl=mejor.o; setSel([{type:"wall",id:wl.id}]);
         action={type:"wall",id:wl.id,sx:w.x,sy:w.y,a0:{...N(wl.a)},b0:{...N(wl.b)},wall:wl,moved:false}; }
       else if(mejor.k==="route"){ const r=mejor.o; setSel([{type:"route",id:r.id}]);
@@ -3017,7 +3057,13 @@ function onUp(ev){
         if(action.downK&&action.downId&&SEL_KINDS[action.downK]) hit={type:action.downK,id:action.downId};
         else if(capaViva("structure")){ const nwF=nearestWall({x:action.x0,y:action.y0},radioSelPx(ev.pointerType)/scale);
           if(nwF) hit={type:"wall",id:nwF.w.id}; }
-        if(hit){ if(modoSumar) toggleSel(hit.type,hit.id); else setSel([hit]); }
+        if(hit){ if(modoSumar||ev.ctrlKey||ev.metaKey) toggleSel(hit.type,hit.id); else setSel([hit]); }
+        // Ctrl/⌘ en el VACÍO no borra nada. Sumar es un gesto de puntería: el
+        // que se pasa de largo esperaba agregar, no barrer. Medido: un Ctrl+clic
+        // en vacío se llevaba puesta una selección de 10 objetos. Es la regla de
+        // Illustrator y de Figma, y es lo que hace inofensivo el alcance
+        // generoso del rescate de sumar.
+        else if(ev.ctrlKey||ev.metaKey){ /* la selección se queda como está */ }
         else if(modoSumar){ modoSumar=false;
           avisar("⊕ Sumar apagado — "+(selection.length?("quedan "+selection.length+" elegidos."):"sin selección.")); }
         else setSel([]);
