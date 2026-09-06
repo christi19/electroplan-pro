@@ -35,11 +35,24 @@ export async function abrirNavegador({ tactil = false } = {}) {
       ? { hasTouch: true, isMobile: true, viewport: { width: 820, height: 1180 } }
       : { viewport: { width: 1440, height: 900 } }
   );
-  // El stub va ANTES de cargar: onDown llama setPointerCapture sin try/catch y
-  // con pointerId sintetico lanza, abortando el handler a la mitad.
+  // El stub va ANTES de cargar: con un pointerId SINTETICO, setPointerCapture
+  // lanza y aborta el handler a la mitad.
+  //
+  // Pero anularlo del todo MIENTE. La app depende de la captura real para
+  // sobrevivir a su propio render(): el handler de pointerdown saca del DOM el
+  // nodo tocado, y dentro de un iframe Chromium deja de entregar el resto de la
+  // secuencia tactil si no hay captura. Con el stub vacio, TODO gesto sobre un
+  // objeto embebido moria en el pointerdown — un fallo grave que no existe.
+  //
+  // Se intenta la captura de verdad y solo se traga el error de los punteros
+  // inventados: los reales (CDP) conservan su comportamiento de produccion.
   await context.addInitScript(() => {
-    Element.prototype.setPointerCapture = function () {};
-    Element.prototype.releasePointerCapture = function () {};
+    const capt = Element.prototype.setPointerCapture;
+    const libre = Element.prototype.releasePointerCapture;
+    Element.prototype.setPointerCapture = function (id) {
+      try { return capt.call(this, id); } catch (_) { /* puntero sintetico */ } };
+    Element.prototype.releasePointerCapture = function (id) {
+      try { return libre.call(this, id); } catch (_) { /* puntero sintetico */ } };
   });
   return { browser, context };
 }

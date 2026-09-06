@@ -585,7 +585,18 @@
 "use strict";
 (function(){
 /* ===================== Modelo ===================== */
+// SELLO DE VERSION. Tiene que subir en cada release, junto con el nombre de
+// cache del service worker (planelectrico-vNN): son la MISMA version.
+// Existe porque sin el, "no cambio nada" no se puede ni confirmar ni refutar:
+// el ?v= del iframe lleva releases congelado y el service worker puede estar
+// sirviendo un HTML viejo. Se pinta donde el usuario lo pueda leer y dictar.
+const APP_VER="v64";
 let ID=1; const uid=p=>(p||"n")+(ID++);
+// El script corre con el DOM ya montado, asi que la marca se sella al vuelo en
+// vez de repetir el numero en el HTML: dos copias se desincronizan solas.
+try{ const bs=document.querySelector(".brand small");
+  if(bs) bs.textContent=bs.textContent.trim()+" · "+APP_VER;
+  document.title=document.title+" "+APP_VER; }catch(_){}
 const CM_PER_M=100;
 const MATERIALS={
   "Ladrillo":{price:45},"Bloque":{price:30},"Drywall":{price:35},
@@ -4242,7 +4253,11 @@ function renderLayers(p){ const L=[["structure","🧱 Estructura (paredes)"],["o
       else extra=`<button class="lyrbtn" data-lock="${k}" title="Bloquear: no se puede seleccionar ni mover">${lock?"🔒":"🔓"}</button>`+
         `<input class="lyrop" type="range" min="10" max="100" value="${op}" data-op="${k}" title="Opacidad ${op}%">`;
       return `<div class="lyrrow"><button class="lyrbtn" data-vis="${k}" title="Ver u ocultar">${vis?"👁":"🙈"}</button>`+
-        `<span class="lyrname">${n}</span>${extra}</div>`; }).join("");
+        `<span class="lyrname">${n}</span>${extra}</div>`; }).join("")+
+    // La marca lleva la version, pero `.embed body.mobile .brand{display:none}`
+    // la esconde justo donde trabaja el electricista: dentro del iframe, en
+    // tablet. Esta pestana se alcanza siempre, embebido o no.
+    `<div class="muted" id="appver" style="margin-top:12px;text-align:center;font-family:var(--mono)">PlanEléctrico Pro ${APP_VER}</div>`;
   p.querySelectorAll("[data-vis]").forEach(b=>b.onclick=()=>{ const k=b.dataset.vis;
     settings["layer_"+k]=!(settings["layer_"+k]!==false); applyLayers(); scheduleSave(); renderPanel(); });
   p.querySelectorAll("[data-lock]").forEach(b=>b.onclick=()=>{ const k=b.dataset.lock;
