@@ -192,21 +192,6 @@
     border-radius:6px;color:var(--ink);padding:3px 4px;text-align:right;font-size:12px;}
   .cartrow .cs{flex:none;min-width:56px;text-align:right;font-variant-numeric:tabular-nums;
     font-family:var(--mono);font-size:12.5px;}
-  /* Materiales propios: nombre en su propia línea (los de ferretería son largos) y los
-     controles debajo, con área táctil de dedo — se usa en el celular, en obra. */
-  .matrow{display:grid;grid-template-columns:26px 1fr auto;gap:4px 8px;align-items:center;
-    padding:8px 0;border-bottom:1px solid var(--line);}
-  .matrow .mi{font-size:18px;text-align:center;}
-  .matrow .mn{min-width:0;font-size:12.5px;font-weight:600;line-height:1.3;overflow-wrap:anywhere;}
-  .matrow .mn small{display:block;color:var(--soft);font-size:10.5px;font-weight:400;}
-  .matrow .mops{grid-column:2/4;display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
-  .matrow input,.matrow select{background:var(--panel2);border:1px solid var(--line);
-    border-radius:6px;color:var(--ink);padding:4px 6px;font-size:12.5px;min-height:32px;}
-  .matrow input{width:72px;text-align:right;font-variant-numeric:tabular-nums;}
-  .matrow .mx{color:var(--soft);font-size:12px;}
-  .matrow .ms{margin-left:auto;font-weight:800;font-family:var(--mono);font-size:12.5px;
-    font-variant-numeric:tabular-nums;}
-  .matrow .mdel{min-height:34px;min-width:38px;padding:2px 8px;justify-content:center;}
   #dragGhost{position:fixed;display:none;z-index:200;pointer-events:none;
     flex-direction:column;align-items:center;justify-content:center;gap:2px;
     width:64px;height:64px;border-radius:14px;background:var(--panel);
@@ -255,6 +240,69 @@
   .ctxbar input[type=color]{width:32px;height:28px;padding:1px;border:1px solid var(--line);border-radius:6px;background:var(--panel2);}
   .ctxbar button{height:28px;padding:0 10px;font-size:12px;}
   /* Panel de Capas (Photoshop/Illustrator: ver / bloquear / opacidad) */
+  /* --- Lista de materiales: cifras grandes y legibles a un brazo de distancia --- */
+  .matstats{display:flex;gap:6px;margin-bottom:10px;}
+  .matstat{flex:1;background:var(--panel2);border:1px solid var(--line);border-radius:8px;
+    padding:8px 6px;text-align:center;min-width:0;}
+  .matstat b{display:block;font-family:var(--mono);font-size:17px;color:var(--ink);
+    font-variant-numeric:tabular-nums;line-height:1.2;}
+  .matstat span{display:block;font-size:10px;color:var(--faint);text-transform:uppercase;
+    letter-spacing:.06em;margin-top:2px;}
+  .matpuente{background:var(--panel2);border:1px solid var(--line);border-radius:8px;
+    padding:10px;font-size:12.5px;color:var(--ink);line-height:1.5;margin-bottom:6px;}
+  .matpuente b{font-family:var(--mono);color:var(--accent);}
+  .matpuente.vacio{color:var(--soft);}
+  .bodnom small.mc{font-weight:700;}
+  .bodnom small.mc.falta{color:var(--danger);}
+  .bodnom small.mc.ok{color:var(--ok);}
+  .matgrupo{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;
+    color:var(--accent);margin:12px 0 2px;}
+  /* --- Bodega: filas, filtros y formulario. Todo con variables de tema para
+     que funcione igual en claro y en oscuro; 44px de alto minimo porque el
+     dedo de un electricista no es un cursor. --- */
+  .bodadd{width:100%;justify-content:center;min-height:44px;margin-bottom:10px;
+    background:var(--blue);border-color:var(--blue);color:#fff;font-weight:700;}
+  .bodbusca{width:100%;min-height:44px;background:var(--panel2);border:1px solid var(--line);
+    border-radius:8px;color:var(--ink);padding:0 10px;font-size:14px;margin-bottom:8px;}
+  .bodfiltros{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:4px;}
+  .bodfiltros select{flex:1 1 130px;min-height:44px;background:var(--panel2);
+    border:1px solid var(--line);border-radius:8px;color:var(--ink);padding:0 8px;font-size:12.5px;}
+  .bodchip{min-height:44px;padding:0 12px;border-radius:8px;background:var(--panel2);
+    border:1px solid var(--line);color:var(--soft);font-size:12.5px;cursor:pointer;}
+  .bodchip.on{background:var(--accent);border-color:var(--accent);color:#08131f;font-weight:800;}
+  .bodcuenta{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;
+    color:var(--faint);margin:6px 0 4px;}
+  .bodrow{display:flex;align-items:center;gap:8px;padding:6px 2px;border-bottom:1px solid var(--line);}
+  .bodico{font-size:17px;width:22px;text-align:center;flex:none;}
+  .bodnom{flex:1;min-width:0;}
+  .bodnom b{display:block;font-size:13px;color:var(--ink);font-weight:700;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .bodnom small{display:block;color:var(--faint);font-size:11px;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .bodcant{font-family:var(--mono);font-size:13px;color:var(--ink);text-align:right;flex:none;}
+  .bodcant small{color:var(--faint);font-size:10px;}
+  .bodcant.bajo{color:var(--danger);font-weight:800;}
+  .bodcant em{display:block;font-style:normal;font-size:9px;color:var(--danger);
+    text-transform:uppercase;letter-spacing:.06em;font-weight:800;}
+  .bodbtn{min-width:44px;min-height:44px;background:none;border:0;border-radius:8px;
+    font-size:15px;cursor:pointer;color:var(--soft);flex:none;}
+  .bodbtn:hover{background:var(--panel2);}
+  /* Los campos scrollean dentro del dialogo: con el teclado del telefono
+     abierto, el boton Guardar tiene que seguir alcanzable. */
+  .bodform{max-height:52vh;overflow-y:auto;overscroll-behavior:contain;}
+  .bodabrir{background:none;border:0;padding:0;text-align:left;cursor:pointer;
+    min-height:44px;display:flex;flex-direction:column;justify-content:center;}
+  .bodrow.revertido{opacity:.55;}
+  .bodrow.revertido .bodcant{text-decoration:line-through;}
+  .bodvacio{padding:18px 6px;text-align:center;color:var(--soft);font-size:13px;line-height:1.6;}
+  .bodvacio small{color:var(--faint);font-size:11.5px;}
+  .bodinp{width:100%;min-height:44px;background:var(--panel2);border:1px solid var(--line);
+    border-radius:7px;color:var(--ink);padding:0 9px;font-size:14px;}
+  .bodpar{display:flex;gap:8px;}
+  .bodpar .field{flex:1;}
+  .bodadd:focus-visible,.bodchip:focus-visible,.bodbtn:focus-visible,
+  .bodbusca:focus-visible,.bodinp:focus-visible,.bodfiltros select:focus-visible{
+    outline:2px solid var(--accent);outline-offset:2px;}
   .lyrrow{display:flex;align-items:center;gap:8px;padding:6px 2px;border-bottom:1px solid var(--line);}
   .lyrbtn{background:none;border:0;font-size:16px;cursor:pointer;padding:2px 5px;line-height:1;border-radius:6px;}
   .lyrbtn:hover{background:var(--panel2);}
@@ -497,8 +545,8 @@
         <button id="fabU" class="rk rk-u" title="Deshacer (Ctrl+Z)" aria-label="Deshacer">↶</button>
         <button id="fabR" class="rk rk-r" title="Rehacer (Ctrl+Y)" aria-label="Rehacer">↷</button>
       </div>
-      <button id="fabOK" title="Terminar trazo" style="display:none">✔</button>
-      <button id="fabX" title="Cancelar trazo" style="display:none">✕</button>
+      <button id="fabOK" title="Terminar trazo" aria-label="Terminar el trazo" style="display:none">✔</button>
+      <button id="fabX" title="Cancelar trazo" aria-label="Cancelar el trazo" style="display:none">✕</button>
     </div>
     <div class="floorbar" id="floorbar">
       <button id="floorbtn" title="Pisos de la obra" aria-label="Pisos de la obra: cambiar de planta, renombrar o agregar">🏢 Planta 1</button>
@@ -525,6 +573,8 @@
       <button data-tab="insp" class="on">Editar</button>
       <button data-tab="cir">⚡ Circuitos <span id="cirBadge" class="cotbadge" hidden>0</span></button>
       <button data-tab="layers">Capas</button>
+      <button data-tab="mat">🧾 Materiales</button>
+      <button data-tab="bodega">🧰 Bodega</button>
     </div>
     <div class="panelbody" id="panelbody"></div>
     <div class="status" id="status"></div>
@@ -638,6 +688,62 @@ function sembrarCatalogo(){
     settings.catalogo=CATALOGO_CR.map(m=>Object.assign({id:uid("mat")},m));
   scheduleSave();
 }
+/* ===================== Bodega del electricista =====================
+   La bodega es del ELECTRICISTA, no del plano: el taladro sigue siendo suyo
+   aunque cambie de obra. Por eso vive en su PROPIA clave de localStorage,
+   como el índice de proyectos, y no dentro de doc.
+   Ids con contador propio: ID global se reinicia en cada carga y reindexIds()
+   lo recalcula SOLO desde el documento, así que reusarlo repetiría ids. */
+const BOD_KEY="planelectrico:bodega";
+const BOD_CATS=[["herramienta","🔧 Herramienta"],["material","🧱 Material"],["consumible","🧴 Consumible"]];
+const BOD_UNI=[["u","unidades"],["m","metros"],["caja","cajas"],["rollo","rollos"]];
+let bodega={v:1,sembrada:false,ubicaciones:[],items:[],movs:[],enlaces:{}};
+let BID=1; const bid=p=>p+(BID++);
+
+// Busca perdonando: sin tildes, sin mayúsculas y por pedazo de palabra, porque
+// nadie escribe "lámpara" con tilde con una mano y el celular en la otra.
+function bodNorm(s){ return String(s==null?"":s).toLowerCase()
+  .normalize("NFD").replace(/[\u0300-\u036f]/g,"").trim(); }
+
+function bodReindex(){ let mx=0;
+  const scan=o=>{ const m=/(\d+)$/.exec(o||""); if(m) mx=Math.max(mx,+m[1]); };
+  bodega.ubicaciones.forEach(u=>scan(u.id)); bodega.items.forEach(i=>scan(i.id));
+  bodega.movs.forEach(v=>scan(v.id)); BID=mx+1; }
+
+function bodCargar(){
+  try{ const raw=lsGet(BOD_KEY);
+    if(raw){ const b=JSON.parse(raw)||{};
+      bodega={v:1, sembrada:b.sembrada===true, ubicaciones:b.ubicaciones||[],
+              items:b.items||[], movs:b.movs||[], enlaces:b.enlaces||{}}; } }catch(e){}
+  bodSembrar(); bodReindex(); }
+
+function bodGuardar(){ bodega.v=1; lsSet(BOD_KEY,JSON.stringify(bodega)); }
+
+// Tres sitios de EJEMPLO, una sola vez y borrables: mismo criterio que
+// sembrarCatalogo(). No son ubicaciones de fábrica —se renombran y se borran—,
+// están para que la primera pantalla no sea una hoja en blanco.
+function bodSembrar(){ if(bodega.sembrada) return; bodega.sembrada=true;
+  if(!bodega.ubicaciones.length){
+    bodega.ubicaciones=[{id:"ub1",nombre:"Bodega",padre:null},
+                        {id:"ub2",nombre:"Buseta",padre:null},
+                        {id:"ub3",nombre:"Estante 1",padre:"ub1"}]; }
+  bodGuardar(); }
+
+function bodUbic(id){ return bodega.ubicaciones.find(u=>u.id===id)||null; }
+// "Bodega › Estante 1": el electricista lee el camino entero, no un código.
+// El tope de 8 corta cualquier ciclo padre→hijo→padre en vez de colgar la app.
+function bodRuta(id){ const partes=[]; let u=bodUbic(id), tope=0;
+  while(u&&tope++<8){ partes.unshift(u.nombre); u=u.padre?bodUbic(u.padre):null; }
+  return partes.join(" › ")||"Sin sitio"; }
+function bodHijas(padre){ return bodega.ubicaciones.filter(u=>(u.padre||null)===(padre||null)); }
+// Lista jerárquica aplanada, con sangría, para los <select> de sitio.
+function bodUbicPlano(){ const out=[];
+  const baja=(padre,niv)=>{ if(niv>7) return;
+    bodHijas(padre).forEach(u=>{ out.push({id:u.id,nombre:u.nombre,niv:niv}); baja(u.id,niv+1); }); };
+  baja(null,0); return out; }
+function bodBajoMinimo(it){ return (+it.minimo||0)>0 && (+it.cantidad||0)<=(+it.minimo||0); }
+function bodUnidad(u){ const f=BOD_UNI.find(x=>x[0]===u); return f?f[1]:"unidades"; }
+function bodCat(c){ const f=BOD_CATS.find(x=>x[0]===c); return f?f[1]:"🧱 Material"; }
 function normalizeDoc(d){ d.circuits=d.circuits||[]; d.elements=d.elements||[]; d.routes=d.routes||[];
   d.photos=d.photos||[]; d.precios=d.precios||{}; d.stairs=d.stairs||[]; d.nodes=d.nodes||{}; d.walls=d.walls||[]; d.openings=d.openings||[];
   d.materiales=d.materiales||[];
@@ -1947,7 +2053,7 @@ function updateHint(){ const h=document.getElementById("hint");
     toma:"Clic para colocar una toma.",lampara:"Clic para colocar una lámpara.",
     interruptor:"Clic para colocar un interruptor.",panel:"Clic para colocar el tablero eléctrico (desde él se estima el cable de cada circuito).",
     pan:"Arrastra para mover el lienzo. Rueda = zoom.",
-    route:"Traza la TUBERÍA punto a punto (imán a dispositivos y tablero). Enter o doble clic termina. Si toca un dispositivo con circuito, la ruta lo adopta y el cable se calcula por la ruta REAL.",
+    route:"Conectá con una LÍNEA: tocá una cosa, tocá la otra… y cerrá con ✔ (o Enter, o doble clic). Se imanta a los aparatos y al tablero; si toca un dispositivo con circuito, la línea lo adopta y el cable se cuenta por el recorrido REAL.",
     photo:"Toca el punto del plano donde va la foto (la caja abierta, el registro…) y elige o toma la imagen.",
     stair:"ARRASTRA del arranque a la llegada de la escalera: la app calcula los ESCALONES solos (contrahuella máx. 18 cm + regla de Blondel)." };
   let txt=map[tool]||"";
@@ -2925,6 +3031,8 @@ document.querySelectorAll(".tabs button").forEach(b=>b.onclick=()=>abrirTab(b.da
 function renderPanel(){ const p=document.getElementById("panelbody");
   updateCotBadge();
   if(tab==="layers") return renderLayers(p);
+  if(tab==="mat") return renderMateriales(p);
+  if(tab==="bodega") return renderBodega(p);
   if(tab==="cir") return renderCircuits(p);
   return renderInspector(p); }
 
@@ -3405,6 +3513,593 @@ function renderCircuits(p){
       pushHistory(); render(); } });
 }
 
+/* --------- Bodega: movimientos ---------
+   Entró, salió, se movió de sitio, o lo conté y no daba. Cada uno queda
+   anotado con fecha. REVERSIBILIDAD: revertir NO borra el movimiento, crea el
+   movimiento inverso (un contra-asiento). Así el historial sigue contando lo
+   que de verdad pasó, la cuenta nunca queda a medias, y revertir dos veces no
+   descuadra el inventario. */
+const BOD_MOVS=[["entrada","📥 Entró","Compré o me llegó"],
+                ["salida","📤 Salió","Lo usé en una obra"],
+                ["traslado","🚚 Se movió","Lo cambié de sitio"],
+                ["ajuste","🔢 Lo conté","La cuenta no daba"]];
+function bodMovNom(t){ const f=BOD_MOVS.find(x=>x[0]===t); return f?f[1]:t; }
+function bodFecha(ts){ try{ return new Date(ts).toLocaleDateString("es-CR",
+    {day:"2-digit",month:"2-digit",year:"2-digit"}); }catch(e){ return ""; } }
+
+// Mismo nombre + misma unidad en OTRO sitio = la misma cosa guardada en dos
+// lados. Trasladar junta las dos filas en vez de duplicar el inventario.
+function bodItemEnSitio(modelo,ubicacionId){
+  return bodega.items.find(x=>x.id!==modelo.id&&x.ubicacionId===ubicacionId&&
+    bodNorm(x.nombre)===bodNorm(modelo.nombre)&&x.unidad===modelo.unidad)||null;
+}
+
+function bodAplicarMov(mv){
+  const it=bodega.items.find(x=>x.id===mv.itemId); if(!it) return false;
+  const q=+mv.cant||0;
+  if(mv.tipo==="entrada") it.cantidad=(+it.cantidad||0)+q;
+  else if(mv.tipo==="salida") it.cantidad=Math.max(0,(+it.cantidad||0)-q);
+  else if(mv.tipo==="ajuste"){ mv.antes=(+it.cantidad||0); it.cantidad=q; }
+  else if(mv.tipo==="traslado"){
+    it.cantidad=Math.max(0,(+it.cantidad||0)-q);
+    let dest=bodItemEnSitio(it,mv.aUbic);
+    if(!dest){ dest=Object.assign({},it,{id:bid("bit"),ubicacionId:mv.aUbic,cantidad:0});
+      bodega.items.push(dest); }
+    dest.cantidad=(+dest.cantidad||0)+q;
+    mv.destinoId=dest.id;
+  }
+  return true;
+}
+
+// El formulario de edición cambia la cantidad y el sitio a mano. Si eso no
+// entrara al historial, "📜 Movimientos" contaría una historia falsa. Estos
+// movimientos ya vienen aplicados: solo se anotan.
+function bodAnotarYaAplicado(mv){
+  mv.id=bid("mov"); mv.ts=Date.now(); mv.aMano=true;
+  bodega.movs.push(mv);
+  if(bodega.movs.length>500) bodega.movs.shift();
+}
+
+function bodRegistrar(mv){
+  mv.id=bid("mov"); mv.ts=Date.now();
+  if(!bodAplicarMov(mv)) return null;
+  bodega.movs.push(mv);
+  if(bodega.movs.length>500) bodega.movs.shift();   // el historial no crece sin fin
+  bodGuardar(); return mv;
+}
+
+// El inverso de cada movimiento. Un ajuste se revierte volviendo al valor que
+// había ANTES del conteo, que por eso se guarda al aplicarlo.
+function bodInverso(mv){
+  if(mv.tipo==="entrada") return {tipo:"salida",itemId:mv.itemId,cant:mv.cant};
+  if(mv.tipo==="salida")  return {tipo:"entrada",itemId:mv.itemId,cant:mv.cant};
+  if(mv.tipo==="ajuste")  return {tipo:"ajuste",itemId:mv.itemId,cant:mv.antes||0};
+  if(mv.tipo==="traslado") return {tipo:"traslado",itemId:mv.destinoId||mv.itemId,
+    cant:mv.cant,deUbic:mv.aUbic,aUbic:mv.deUbic};   // el origen del inverso es el destino
+  return null;
+}
+function bodRevertir(mv){
+  const inv=bodInverso(mv); if(!inv) return false;
+  inv.nota="revierte "+bodMovNom(mv.tipo).replace(/^\S+\s/,"")+" del "+bodFecha(mv.ts);
+  inv.revierteA=mv.id;
+  if(!bodRegistrar(inv)) return false;
+  mv.revertido=true; bodGuardar(); return true;
+}
+
+/* --------- Bodega: anotar un movimiento --------- */
+async function bodAnotarMov(itemId){
+  const it=bodega.items.find(x=>x.id===itemId); if(!it) return;
+  const tipo=await pedirOpcion("¿Qué pasó con «"+bodEsc(it.nombre)+"»?<br>"+
+    "<small style='color:var(--faint)'>Ahora hay "+matNum(it.cantidad)+" "+it.unidad+
+    " en "+bodEsc(bodRuta(it.ubicacionId))+"</small>",
+    BOD_MOVS.map(([k,n,ayuda])=>({k,txt:n+" <small style='color:var(--faint)'>— "+ayuda+"</small>"})));
+  if(!tipo) return;
+
+  const etiqueta = tipo==="ajuste" ? "¿Cuánto contaste en realidad?"
+                 : tipo==="traslado" ? "¿Cuánto se movió?"
+                 : tipo==="entrada" ? "¿Cuánto entró?" : "¿Cuánto salió?";
+  const def = tipo==="ajuste" ? matNum(it.cantidad) : "1";
+  const txt=await pedir(etiqueta+" ("+bodUnidad(it.unidad)+")",def,"number");
+  if(txt==null) return;
+  const cant=Math.max(0,+txt||0);
+  if(!cant&&tipo!=="ajuste"){ avisar("Poné una cantidad mayor que cero."); return; }
+  if((tipo==="salida"||tipo==="traslado")&&cant>(+it.cantidad||0)){
+    avisar("No podés sacar "+matNum(cant)+" si solo hay "+matNum(it.cantidad)+"."); return; }
+
+  const mv={tipo,itemId,cant,deUbic:it.ubicacionId};
+  if(tipo==="traslado"){
+    const sitios=bodUbicPlano().filter(u=>u.id!==it.ubicacionId);
+    if(!sitios.length){ avisar("Creá otro sitio primero, en 📍 Sitios."); return; }
+    const a=await pedirOpcion("¿A qué sitio se movió?",
+      sitios.map(u=>({k:u.id,txt:bodEsc(bodRuta(u.id))})));
+    if(!a) return; mv.aUbic=a;
+  }
+  if(!bodRegistrar(mv)){ avisar("No pude anotar el movimiento."); return; }
+  _matSig=""; renderPanel();
+  avisar(bodMovNom(tipo)+": "+matNum(cant)+" "+it.unidad+" · "+it.nombre);
+}
+
+/* --------- Bodega: historial --------- */
+function showMovimientos(){
+  const pintar=()=>{
+    const lista=bodega.movs.slice().reverse();
+    if(!lista.length) return `<div class="bodvacio">Todavía no anotaste ningún movimiento.<br>`+
+      `<small>Tocá una cosa de la bodega para anotar que entró, salió o se movió.</small></div>`;
+    return lista.map(mv=>{
+      const it=bodega.items.find(x=>x.id===mv.itemId);
+      const detalle = mv.tipo==="traslado"
+        ? bodRuta(mv.deUbic)+" → "+bodRuta(mv.aUbic)
+        : (mv.nota||bodRuta(mv.deUbic));
+      return `<div class="bodrow${mv.revertido?" revertido":""}">`+
+        `<span class="bodnom"><b>${bodMovNom(mv.tipo)} · ${bodEsc(it?it.nombre:"(borrado)")}</b>`+
+          `<small>${bodFecha(mv.ts)} · ${bodEsc(detalle)}</small></span>`+
+        `<span class="bodcant">${matNum(mv.cant)}</span>`+
+        (mv.revertido||mv.revierteA||!it?`<span class="bodbtn" aria-hidden="true">—</span>`
+          :`<button class="bodbtn" data-brev="${bodEsc(mv.id)}" `+
+           `aria-label="Revertir ${bodMovNom(mv.tipo)} de ${bodEsc(it.nombre)}">↩️</button>`)+
+      `</div>`; }).join("");
+  };
+  const m=uiModal(
+    `<div class="kdt" style="margin-bottom:6px">📜 Movimientos</div>`+
+    `<div class="muted" style="margin-bottom:10px">Lo último primero. Revertir no borra: `+
+      `anota el movimiento contrario, así la cuenta siempre cuadra.</div>`+
+    `<div id="mvLista" style="max-height:46vh;overflow:auto"></div>`+
+    `<button id="mvCerrar" class="ghost" style="width:100%;justify-content:center;margin-top:10px">Listo</button>`);
+  const refrescar=()=>{
+    const l=m.querySelector("#mvLista"); l.innerHTML=pintar();
+    l.querySelectorAll("[data-brev]").forEach(b=>b.onclick=async()=>{
+      const mv=bodega.movs.find(x=>x.id===b.dataset.brev); if(!mv) return;
+      if(!await pedirConfirm(`¿Revertir <b>${bodMovNom(mv.tipo)}</b> de ${matNum(mv.cant)}?<br>`+
+        `<small>Se anota el movimiento contrario; el original queda en el historial.</small>`,
+        "↩️ Revertir")) return;
+      if(bodRevertir(mv)){ refrescar(); _matSig=""; renderPanel(); avisar("Revertido."); }
+      else avisar("No pude revertir ese movimiento."); });
+  };
+  refrescar();
+  const fin=()=>{ m.remove(); renderPanel(); };
+  m.querySelector("#mvCerrar").onclick=fin;
+  m.onclick=ev=>{ if(ev.target===m) fin(); };
+}
+
+/* --------- Bodega: pantalla --------- */
+let bodBusca="", bodSoloBajos=false, bodSitio="";
+function bodEsc(s){ return String(s==null?"":s)
+  .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+
+// Un ítem entra si el texto buscado aparece en su nombre, su código o el
+// camino de su sitio: buscar "buseta" tiene que sacar todo lo que va en la buseta.
+function bodCoincide(it,q){ if(!q) return true;
+  return bodNorm(it.nombre+" "+(it.codigo||"")+" "+bodRuta(it.ubicacionId)).includes(q); }
+
+function bodItemsVisibles(){ const q=bodNorm(bodBusca);
+  return bodega.items.filter(it=>
+    (!bodSoloBajos||bodBajoMinimo(it)) &&
+    (!bodSitio||it.ubicacionId===bodSitio) &&
+    bodCoincide(it,q))
+  .sort((a,b)=>bodNorm(a.nombre).localeCompare(bodNorm(b.nombre)));
+}
+
+function bodFilaHTML(it){
+  const bajo=bodBajoMinimo(it), cat=bodCat(it.categoria);
+  return `<div class="bodrow" data-bitem="${bodEsc(it.id)}">`+
+    `<span class="bodico" aria-hidden="true">${cat.split(" ")[0]}</span>`+
+    `<button class="bodnom bodabrir" data-bmov="${bodEsc(it.id)}" `+
+      `aria-label="Anotar que entró, salió o se movió ${bodEsc(it.nombre)}">`+
+      `<b>${bodEsc(it.nombre)}</b>`+
+      `<small>${bodEsc(bodRuta(it.ubicacionId))}${it.codigo?" · "+bodEsc(it.codigo):""}</small></button>`+
+    `<span class="bodcant${bajo?" bajo":""}">${(+it.cantidad||0)}<small> ${bodEsc(it.unidad||"u")}</small>`+
+      `${bajo?`<em title="Quedan ${(+it.cantidad||0)} y tu mínimo es ${(+it.minimo||0)}">bajo mínimo</em>`:""}</span>`+
+    `<button class="bodbtn" data-bedit="${bodEsc(it.id)}" aria-label="Editar ${bodEsc(it.nombre)}">✏️</button>`+
+  `</div>`;
+}
+
+function bodListaHTML(){
+  const items=bodItemsVisibles();
+  if(items.length) return items.map(bodFilaHTML).join("");
+  if(bodega.items.length) return `<div class="bodvacio">Nada coincide con esa búsqueda.<br>`+
+    `<small>Probá con menos letras: se busca por nombre, código y sitio.</small></div>`;
+  return `<div class="bodvacio">Tu bodega está vacía.<br>`+
+    `<small>Agregá lo primero que tengás a mano —un taladro, un rollo de cable—<br>`+
+    `y anotá dónde está. Después la app te dice qué te falta para cada obra.</small></div>`;
+}
+
+function bodPintarLista(){ const l=document.getElementById("bodLista"); if(!l) return;
+  l.innerHTML=bodListaHTML();
+  l.querySelectorAll("[data-bedit]").forEach(b=>b.onclick=()=>bodEditar(b.dataset.bedit));
+  l.querySelectorAll("[data-bmov]").forEach(b=>b.onclick=()=>bodAnotarMov(b.dataset.bmov));
+  const c=document.getElementById("bodCuenta");
+  if(c){ const n=bodItemsVisibles().length, t=bodega.items.length;
+    c.textContent = t? (n===t? `${t} cosa${t===1?"":"s"} en bodega` : `${n} de ${t}`) : ""; }
+}
+
+function renderBodega(p){
+  const sitios=bodUbicPlano();
+  const bajos=bodega.items.filter(bodBajoMinimo).length;
+  p.innerHTML=
+    `<div class="kdt sec" style="margin-bottom:6px">Mi bodega</div>`+
+    `<div class="muted" style="margin-bottom:10px">Lo que tenés y en qué sitio está. `+
+      `Tocá una cosa para anotar que entró, salió o se movió. `+
+      `Se guarda en este aparato y funciona sin internet.</div>`+
+    `<button id="bodAdd" class="bodadd">➕ Agregar algo a la bodega</button>`+
+    `<input id="bodBuscar" type="search" class="bodbusca" placeholder="Buscar: taladro, cable, buseta…" `+
+      `value="${bodEsc(bodBusca)}" aria-label="Buscar en la bodega">`+
+    `<div class="bodfiltros">`+
+      `<select id="bodSitioSel" aria-label="Ver solo un sitio">`+
+        `<option value="">Todos los sitios</option>`+
+        sitios.map(u=>`<option value="${bodEsc(u.id)}" ${u.id===bodSitio?"selected":""}>`+
+          `${bodEsc(bodRuta(u.id))}</option>`).join("")+
+      `</select>`+
+      `<button id="bodBajos" class="bodchip${bodSoloBajos?" on":""}" aria-pressed="${bodSoloBajos}">`+
+        `⚠️ Bajo mínimo${bajos?` (${bajos})`:""}</button>`+
+      `<button id="bodSitiosEd" class="bodchip" aria-label="Editar los sitios de la bodega">📍 Sitios</button>`+
+      `<button id="bodMovs" class="bodchip" aria-label="Ver el historial de movimientos">📜 Movimientos</button>`+
+    `</div>`+
+    `<div class="bodcuenta" id="bodCuenta"></div>`+
+    `<div id="bodLista"></div>`;
+
+  bodPintarLista();
+
+  // El buscador NO re-renderiza el panel entero: perdería el foco en cada tecla
+  // y escribir se volvería imposible. Solo se repinta la lista.
+  const bus=document.getElementById("bodBuscar");
+  bus.oninput=()=>{ bodBusca=bus.value; bodPintarLista(); };
+  document.getElementById("bodSitioSel").onchange=function(){ bodSitio=this.value; bodPintarLista(); };
+  document.getElementById("bodBajos").onclick=()=>{ bodSoloBajos=!bodSoloBajos; renderPanel(); };
+  document.getElementById("bodSitiosEd").onclick=()=>bodEditarSitios();
+  document.getElementById("bodMovs").onclick=()=>showMovimientos();
+  document.getElementById("bodAdd").onclick=()=>bodEditar(null);
+}
+
+/* --------- Bodega: alta y edición de un ítem --------- */
+// Un solo formulario para agregar y para editar: el electricista ve siempre la
+// misma pantalla, y no hay dos caminos de código que se desincronicen.
+function bodEditar(id){
+  const it=id?bodega.items.find(x=>x.id===id):null;
+  const nuevo=!it;
+  const v=it||{nombre:"",categoria:"material",cantidad:1,unidad:"u",
+               ubicacionId:(bodUbicPlano()[0]||{}).id||"",minimo:0,codigo:"",nota:""};
+  const sitios=bodUbicPlano();
+  const m=uiModal(
+    `<div class="kdt" style="margin-bottom:10px">${nuevo?"➕ Agregar a la bodega":"✏️ Editar"}</div>`+
+    `<div class="bodform">`+
+    field("¿Qué es?",`<input id="bfNom" class="bodinp" value="${bodEsc(v.nombre)}" `+
+      `placeholder="Taladro, cable #12, breaker 20A…">`)+
+    field("Tipo",`<select id="bfCat" class="bodinp">`+BOD_CATS.map(([k,n])=>
+      `<option value="${k}" ${k===v.categoria?"selected":""}>${n}</option>`).join("")+`</select>`)+
+    `<div class="bodpar">`+
+      field("¿Cuánto tenés?",`<input id="bfCant" class="bodinp" type="number" inputmode="decimal" `+
+        `min="0" step="any" value="${+v.cantidad||0}">`)+
+      field("Se mide en",`<select id="bfUni" class="bodinp">`+BOD_UNI.map(([k,n])=>
+        `<option value="${k}" ${k===v.unidad?"selected":""}>${n}</option>`).join("")+`</select>`)+
+    `</div>`+
+    field("¿Dónde está?",`<select id="bfUb" class="bodinp">`+
+      (sitios.length?"":`<option value="">Sin sitio</option>`)+
+      sitios.map(u=>`<option value="${bodEsc(u.id)}" ${u.id===v.ubicacionId?"selected":""}>`+
+        `${bodEsc(bodRuta(u.id))}</option>`).join("")+`</select>`)+
+    field("Avisame cuando baje de",`<input id="bfMin" class="bodinp" type="number" inputmode="decimal" `+
+      `min="0" step="any" value="${+v.minimo||0}" placeholder="0 = no avisar">`)+
+    field("Código o marca (opcional)",`<input id="bfCod" class="bodinp" value="${bodEsc(v.codigo||"")}">`)+
+    field("Nota (opcional)",`<input id="bfNota" class="bodinp" value="${bodEsc(v.nota||"")}">`)+
+    `</div>`+
+    `<div class="row" style="margin-top:12px">`+
+      `<button id="bfOk" style="flex:1;justify-content:center;background:var(--blue);border-color:var(--blue);color:#fff">Guardar</button>`+
+      `<button id="bfNo" class="ghost" style="flex:1;justify-content:center">Cancelar</button></div>`+
+    (nuevo?"":`<button id="bfDel" class="ghost" style="width:100%;justify-content:center;margin-top:8px;color:var(--danger)">🗑 Quitar de la bodega</button>`)
+  );
+  const cerrar=()=>m.remove();
+  const nom=m.querySelector("#bfNom"); setTimeout(()=>{ nom.focus(); nom.select(); },30);
+  m.onclick=ev=>{ if(ev.target===m) cerrar(); };
+  m.querySelector("#bfNo").onclick=cerrar;
+  m.querySelector("#bfOk").onclick=()=>{
+    const nombre=nom.value.trim();
+    if(!nombre){ avisar("Ponele un nombre para poder encontrarlo después."); nom.focus(); return; }
+    const datos={ nombre:nombre,
+      categoria:m.querySelector("#bfCat").value,
+      cantidad:Math.max(0,+m.querySelector("#bfCant").value||0),
+      unidad:m.querySelector("#bfUni").value,
+      ubicacionId:m.querySelector("#bfUb").value||"",
+      minimo:Math.max(0,+m.querySelector("#bfMin").value||0),
+      codigo:m.querySelector("#bfCod").value.trim(),
+      nota:m.querySelector("#bfNota").value.trim() };
+    if(nuevo){ bodega.items.push(Object.assign({id:bid("bit")},datos)); }
+    else {
+      const antesCant=+it.cantidad||0, antesUb=it.ubicacionId;
+      Object.assign(it,datos);
+      if((+it.cantidad||0)!==antesCant)
+        bodAnotarYaAplicado({tipo:"ajuste",itemId:it.id,cant:+it.cantidad||0,
+          antes:antesCant,deUbic:it.ubicacionId,nota:"corregido a mano"});
+      if(it.ubicacionId!==antesUb)
+        bodAnotarYaAplicado({tipo:"traslado",itemId:it.id,destinoId:it.id,
+          cant:+it.cantidad||0,deUbic:antesUb,aUbic:it.ubicacionId,nota:"corregido a mano"});
+    }
+    bodGuardar(); cerrar(); _matSig=""; renderPanel();
+    avisar(nuevo?`Guardado: ${datos.nombre} en ${bodRuta(datos.ubicacionId)}`:"Cambios guardados.");
+  };
+  const del=m.querySelector("#bfDel");
+  if(del) del.onclick=async()=>{
+    if(!await pedirConfirm(`¿Quitar <b>${bodEsc(it.nombre)}</b> de la bodega?<br>`+
+        `<small>Se borra el registro, no la herramienta.</small>`,"🗑 Quitar")) return;
+    bodega.items=bodega.items.filter(x=>x.id!==it.id);
+    bodGuardar(); cerrar(); renderPanel(); avisar("Quitado de la bodega.");
+  };
+}
+
+/* --------- Bodega: sitios (jerárquicos y del usuario) --------- */
+function bodEditarSitios(){
+  const pintar=()=>{
+    const lista=bodUbicPlano();
+    return lista.map(u=>`<div class="bodrow">`+
+        `<span class="bodnom"><b>${"— ".repeat(u.niv)}${bodEsc(u.nombre)}</b>`+
+        `<small>${bodega.items.filter(i=>i.ubicacionId===u.id).length} cosa(s) aquí</small></span>`+
+        `<button class="bodbtn" data-bsub="${bodEsc(u.id)}" aria-label="Agregar un sitio dentro de ${bodEsc(u.nombre)}">➕</button>`+
+        `<button class="bodbtn" data-bren="${bodEsc(u.id)}" aria-label="Renombrar ${bodEsc(u.nombre)}">✏️</button>`+
+        `<button class="bodbtn" data-bdel="${bodEsc(u.id)}" aria-label="Borrar ${bodEsc(u.nombre)}">🗑</button>`+
+      `</div>`).join("")||`<div class="bodvacio">No hay sitios todavía.</div>`;
+  };
+  const m=uiModal(
+    `<div class="kdt" style="margin-bottom:6px">📍 Sitios de la bodega</div>`+
+    `<div class="muted" style="margin-bottom:10px">Armalos como los tenés de verdad: `+
+      `la bodega con sus estantes, la buseta, cada obra.</div>`+
+    `<div id="bsLista" class="bodform"></div>`+
+    `<button id="bsAdd" class="bodadd" style="margin-top:10px">➕ Sitio nuevo</button>`+
+    `<button id="bsCerrar" class="ghost" style="width:100%;justify-content:center;margin-top:8px">Listo</button>`);
+  const refrescar=()=>{
+    const l=m.querySelector("#bsLista"); l.innerHTML=pintar();
+    l.querySelectorAll("[data-bsub]").forEach(b=>b.onclick=async()=>{
+      const n=await pedir("Nombre del sitio nuevo, dentro de "+bodRuta(b.dataset.bsub)+":","Gaveta 1");
+      if(n==null||!n.trim()) return;
+      bodega.ubicaciones.push({id:bid("ub"),nombre:n.trim(),padre:b.dataset.bsub});
+      bodGuardar(); refrescar(); });
+    l.querySelectorAll("[data-bren]").forEach(b=>b.onclick=async()=>{
+      const u=bodUbic(b.dataset.bren); if(!u) return;
+      const n=await pedir("Nuevo nombre:",u.nombre);
+      if(n==null||!n.trim()) return; u.nombre=n.trim(); bodGuardar(); refrescar(); });
+    l.querySelectorAll("[data-bdel]").forEach(b=>b.onclick=async()=>{
+      const u=bodUbic(b.dataset.bdel); if(!u) return;
+      const dentro=bodega.items.filter(i=>i.ubicacionId===u.id).length;
+      const hijas=bodHijas(u.id).length;
+      if(!await pedirConfirm(`¿Borrar el sitio <b>${bodEsc(u.nombre)}</b>?`+
+          (dentro||hijas?`<br><small>${dentro} cosa(s) quedan sin sitio`+
+            `${hijas?` y ${hijas} sitio(s) de adentro suben un nivel`:""}. Nada se borra.</small>`:""),
+          "🗑 Borrar sitio")) return;
+      bodHijas(u.id).forEach(h=>h.padre=u.padre||null);
+      bodega.items.forEach(i=>{ if(i.ubicacionId===u.id) i.ubicacionId=""; });
+      bodega.ubicaciones=bodega.ubicaciones.filter(x=>x.id!==u.id);
+      bodGuardar(); refrescar(); });
+  };
+  refrescar();
+  m.querySelector("#bsAdd").onclick=async()=>{
+    const n=await pedir("Nombre del sitio nuevo:","Buseta");
+    if(n==null||!n.trim()) return;
+    bodega.ubicaciones.push({id:bid("ub"),nombre:n.trim(),padre:null});
+    bodGuardar(); refrescar(); };
+  const fin=()=>{ m.remove(); renderPanel(); };
+  m.querySelector("#bsCerrar").onclick=fin;
+  m.onclick=ev=>{ if(ev.target===m) fin(); };
+}
+/* --------- El puente: lo que se ocupa CONTRA lo que hay en bodega ---------
+   Casar "Toma doble" del plano con "Tomacorriente doble Leviton" que el
+   electricista escribió a mano no se puede resolver solo por texto. Así que:
+   1) se propone la mejor coincidencia por palabras (sin tildes, >=4 letras), y
+   2) el usuario la confirma UNA vez y queda guardada en bodega.enlaces.
+   Nunca se inventa un cruce: si no hay enlace ni sugerencia clara, la fila dice
+   "no está en tu bodega" en vez de mostrar un número falso. */
+
+// c/u y u son la misma medida con dos nombres; m es m. Lo demás (caja, rollo)
+// no se puede restar de unidades sueltas sin mentir, así que no se compara.
+function bodMismaMedida(unidadArticulo,unidadItem){
+  const n=u=>(u==="c/u"?"u":u);
+  return n(unidadArticulo)===n(unidadItem);
+}
+function bodPalabras(s){ return bodNorm(s).split(/[^a-z0-9#]+/).filter(w=>w.length>=4); }
+
+// Mejor candidato por palabras compartidas. Devuelve null si no hay ninguna:
+// preferimos "no sé" antes que un cruce inventado.
+function bodSugerencia(art){
+  const pal=bodPalabras(art.name); if(!pal.length) return null;
+  let mejor=null, mejorPuntos=0;
+  bodega.items.forEach(it=>{
+    if(!bodMismaMedida(art.unit,it.unidad)) return;
+    const suyas=bodPalabras(it.nombre+" "+(it.codigo||""));
+    const puntos=pal.filter(w=>suyas.some(x=>x.includes(w)||w.includes(x))).length;
+    if(puntos>mejorPuntos){ mejorPuntos=puntos; mejor=it; }
+  });
+  return mejorPuntos>0?mejor:null;
+}
+// La misma cosa puede estar en varios sitios: trasladar una parte la reparte en
+// una fila por sitio (60 m en la bodega + 40 m en la buseta siguen siendo 100 m).
+// El puente suma TODAS sus filas; si mirara una sola, el electricista veria menos
+// material del que tiene justo despues de usar el traslado.
+function bodGrupoDe(it){
+  const n=bodNorm(it.nombre);
+  return bodega.items.filter(x=>x.unidad===it.unidad&&bodNorm(x.nombre)===n);
+}
+
+// El enlace confirmado manda siempre sobre la sugerencia automática.
+function bodItemDe(art){
+  const id=(bodega.enlaces||{})[art.key];
+  if(id){ const it=bodega.items.find(x=>x.id===id); if(it) return {it,confirmado:true}; }
+  const s=bodSugerencia(art);
+  return s?{it:s,confirmado:false}:null;
+}
+function bodEnlazar(clave,itemId){
+  bodega.enlaces=bodega.enlaces||{};
+  if(itemId) bodega.enlaces[clave]=itemId; else delete bodega.enlaces[clave];
+  bodGuardar();
+}
+
+/** Cruce completo: por cada artículo del plano, cuánto hay y cuánto falta. */
+function bodCruce(){
+  const {cub,grupos,claves}=matGrupos();
+  const filas=cub.articulos.map(a=>{
+    const m=bodItemDe(a);
+    const grupo=m?bodGrupoDe(m.it):null;
+    const tengo=grupo?grupo.reduce((t,x)=>t+(+x.cantidad||0),0):null;
+    const sitios=grupo?grupo.filter(x=>(+x.cantidad||0)>0).length:0;
+    const falta=tengo==null?null:Math.max(0,Math.round((a.quantity-tengo)*100)/100);
+    return {art:a, item:m?m.it:null, grupo, sitios,
+            confirmado:!!(m&&m.confirmado), tengo, falta};
+  });
+  return {cub,grupos,claves,filas,
+    porClave:Object.fromEntries(filas.map(f=>[f.art.key,f]))};
+}
+
+/* --------- Lista de compras y texto para WhatsApp --------- */
+function bodTextoCompras(){
+  const {filas}=bodCruce();
+  const faltan=filas.filter(f=>f.tengo==null||f.falta>0);
+  const L=[];
+  L.push("🛒 "+(projectName||"Obra")+" — lo que hay que comprar");
+  if(!faltan.length){ L.push(""); L.push("Nada: todo lo tenés en bodega. ✅"); return L.join("\n"); }
+  L.push("");
+  faltan.forEach(f=>{
+    const cant=f.tengo==null?f.art.quantity:f.falta;
+    L.push("• "+matNum(cant)+" "+f.art.unit+"  "+f.art.name+
+      (f.tengo!=null?"  (tenés "+matNum(f.tengo)+")":""));
+  });
+  const yaTengo=filas.filter(f=>f.tengo!=null&&f.falta===0).length;
+  if(yaTengo){ L.push(""); L.push("Ya tenés en bodega: "+yaTengo+" de "+filas.length+" cosas."); }
+  L.push(""); L.push("— PlanEléctrico Pro");
+  return L.join("\n");
+}
+
+// Copiar falla en file:// y sin permiso: por eso el texto SIEMPRE se muestra,
+// y el botón de copiar es un extra que avisa si no pudo.
+async function bodCopiar(txt){
+  try{ if(navigator.clipboard&&navigator.clipboard.writeText){
+      await navigator.clipboard.writeText(txt); return true; } }catch(e){}
+  try{ const ta=document.createElement("textarea"); ta.value=txt;
+    ta.style.cssText="position:fixed;top:-1000px"; document.body.appendChild(ta);
+    ta.select(); const ok=document.execCommand("copy"); ta.remove(); return ok; }catch(e){ return false; }
+}
+
+function showCompras(){
+  const txt=bodTextoCompras();
+  const m=uiModal(
+    `<div class="kdt" style="margin-bottom:6px">🛒 Lista de compras</div>`+
+    `<div class="muted" style="margin-bottom:8px">Solo lo que te falta. Listo para pegar en WhatsApp.</div>`+
+    `<textarea id="cpTxt" class="bodinp" style="height:210px;padding:9px;resize:vertical;`+
+      `font-family:var(--mono);font-size:12px;line-height:1.5" readonly>${bodEsc(txt)}</textarea>`+
+    `<div class="row" style="margin-top:10px">`+
+      `<button id="cpCopy" style="flex:1;justify-content:center;background:var(--blue);border-color:var(--blue);color:#fff">📋 Copiar</button>`+
+      `<button id="cpNo" class="ghost" style="flex:1;justify-content:center">Cerrar</button></div>`);
+  m.querySelector("#cpCopy").onclick=async()=>{
+    const ta=m.querySelector("#cpTxt"); ta.focus(); ta.select();
+    avisar(await bodCopiar(txt)?"Copiado. Pegalo en WhatsApp.":"No pude copiar solo: está seleccionado, copialo vos.");
+  };
+  const fin=()=>m.remove();
+  m.querySelector("#cpNo").onclick=fin;
+  m.onclick=ev=>{ if(ev.target===m) fin(); };
+}
+
+/** Elegir a mano qué cosa de la bodega es este artículo. */
+async function bodElegirEnlace(clave,nombreArt){
+  const art=matGrupos().cub.articulos.find(x=>x.key===clave);   // UNA sola vez
+  const compat=bodega.items.filter(it=>!art||bodMismaMedida(art.unit,it.unidad));
+  if(!compat.length){ avisar("No tenés nada en bodega que se mida igual que "+nombreArt+"."); return; }
+  // Una opcion por COSA (no por fila): si esta repartida, se ofrece una sola vez
+  // con el total, o el electricista tendria que adivinar cual de dos elegir.
+  const vistos=new Set(), ops=[];
+  compat.forEach(it=>{ const clave=it.unidad+"|"+bodNorm(it.nombre);
+    if(vistos.has(clave)) return; vistos.add(clave);
+    const g=bodGrupoDe(it), total=g.reduce((t,x)=>t+(+x.cantidad||0),0);
+    const donde=g.length>1?g.length+" sitios":bodRuta(it.ubicacionId);
+    ops.push({k:it.id,txt:bodEsc(it.nombre)+" — "+matNum(total)+" "+
+      bodEsc(it.unidad)+" · "+bodEsc(donde)}); });
+  ops.push({k:"__none",txt:"⛔ Ninguna: no lo tengo"});
+  const r=await pedirOpcion("¿Cuál de tu bodega es «"+bodEsc(nombreArt)+"»?",ops);
+  if(r==null) return;
+  bodEnlazar(clave,r==="__none"?null:r);
+  _matSig=""; renderPanel();
+}
+
+/* --------- Lista de materiales, en vivo ---------
+   La cubicación ya existía y era correcta (cubicacionV2: los metros salen del
+   TRAZADO real vía routeLen, no de una estimación a ojo), pero solo se escribía
+   a localStorage dentro de doSave(): nadie se la mostraba al electricista.
+   Este panel es esa lista. Se repinta con la MISMA disciplina que
+   renderStatus/updateCotBadge —guarda de firma— para no rehacer el DOM en cada
+   movimiento del puntero. */
+let _matSig="";
+const MAT_ORDEN=["Dispositivos","Tableros","Cables","Conduits","Accesorios"];
+
+function matGrupos(){
+  const cub=cubicacionV2(), grupos={};
+  cub.articulos.forEach(a=>{ (grupos[a.category]=grupos[a.category]||[]).push(a); });
+  const claves=Object.keys(grupos).sort((a,b)=>{
+    const ia=MAT_ORDEN.indexOf(a), ib=MAT_ORDEN.indexOf(b);
+    return (ia<0?99:ia)-(ib<0?99:ib) || a.localeCompare(b); });
+  return {cub,grupos,claves};
+}
+// 62.5 -> "62.5" y 14 -> "14": el electricista no quiere ver "14.00 c/u".
+function matNum(n){ const v=Math.round((+n||0)*100)/100;
+  return (v%1===0?String(v):v.toFixed(2).replace(/0$/,"")); }
+
+function renderMateriales(p){
+  const {cub,grupos,claves}=matGrupos();
+  const T=cub.magnitudes;
+  // exportedAt cambia en cada llamada: NO entra en la firma o repintaria siempre.
+  // La firma incluye el stock y los enlaces: si cambia la bodega, el cruce de
+  // esta lista cambia aunque el plano no se haya tocado.
+  const sigBod=bodega.items.map(i=>i.id+":"+i.cantidad+":"+i.unidad).join(",")+
+    "|"+JSON.stringify(bodega.enlaces||{});
+  const sig=JSON.stringify(cub.articulos)+"|"+JSON.stringify(T)+"|"+sigBod;
+  if(sig===_matSig && p.querySelector("#matLista")) return;
+  _matSig=sig;
+
+  const cruce=bodCruce(), hayBodega=bodega.items.length>0;
+  const conocidos=cruce.filas.filter(f=>f.tengo!=null);
+  const cubiertos=conocidos.filter(f=>f.falta===0).length;
+
+  // El resumen del puente en una frase, que es como lo diría un electricista.
+  const resumen = !cub.articulos.length ? ""
+    : !hayBodega
+      ? `<div class="matpuente vacio">Cargá lo que tenés en <b>🧰 Bodega</b> y acá te digo qué falta comprar.</div>`
+      : `<div class="matpuente">De las <b>${cub.articulos.length}</b> cosas que ocupás, `+
+        `<b>${cubiertos}</b> ya las tenés en bodega.`+
+        `<button id="matCompras" class="bodchip" style="margin-top:8px;width:100%">🛒 Ver lista de compras</button></div>`;
+
+  const filaHTML=(a)=>{
+    const f=cruce.porClave[a.key]||{tengo:null};
+    let cruceTxt="";
+    if(hayBodega){
+      const reparto=f.sitios>1?` en ${f.sitios} sitios`:"";
+      if(f.tengo==null) cruceTxt=`<small class="mc falta">no está en tu bodega</small>`;
+      else if(f.falta>0) cruceTxt=`<small class="mc falta">tenés ${matNum(f.tengo)}${reparto} · faltan ${matNum(f.falta)}`+
+        `${f.confirmado?"":" ·&nbsp;?"}</small>`;
+      else cruceTxt=`<small class="mc ok">ya lo tenés (${matNum(f.tengo)}${reparto})${f.confirmado?"":" ·&nbsp;?"}</small>`;
+    }
+    return `<div class="bodrow" data-mat="${bodEsc(a.key)}">`+
+      `<span class="bodnom"><b>${bodEsc(a.name)}</b>${cruceTxt}</span>`+
+      `<span class="bodcant">${matNum(a.quantity)}<small> ${bodEsc(a.unit)}</small></span>`+
+      (hayBodega?`<button class="bodbtn" data-menl="${bodEsc(a.key)}" `+
+        `aria-label="Elegir qué cosa de mi bodega es ${bodEsc(a.name)}">🧰</button>`:"")+
+    `</div>`;
+  };
+
+  p.innerHTML=
+    `<div class="kdt sec" style="margin-bottom:6px">Lo que se ocupa</div>`+
+    `<div class="muted" style="margin-bottom:10px">Se va sumando solo mientras dibujás. `+
+      `Los metros salen del trazado real, no de un cálculo a ojo.</div>`+
+    `<div class="matstats">`+
+      `<div class="matstat"><b>${T.puntos}</b><span>puntos</span></div>`+
+      `<div class="matstat"><b>${matNum(T.cableM)}</b><span>m de cable</span></div>`+
+      `<div class="matstat"><b>${matNum(T.tuboM)}</b><span>m de tubo</span></div>`+
+    `</div>`+
+    resumen+
+    `<div id="matLista">`+
+      (cub.articulos.length
+        ? claves.map(k=>`<div class="matgrupo">${bodEsc(k)}</div>`+
+            grupos[k].map(filaHTML).join("")).join("")
+        : `<div class="bodvacio">Todavía no hay nada que contar.<br>`+
+          `<small>Poné una toma o una lámpara en el plano y la vas a ver aparecer acá.</small></div>`)+
+    `</div>`;
+
+  const bc=document.getElementById("matCompras"); if(bc) bc.onclick=()=>showCompras();
+  p.querySelectorAll("[data-menl]").forEach(b=>b.onclick=()=>{
+    const a=cub.articulos.find(x=>x.key===b.dataset.menl);
+    if(a) bodElegirEnlace(a.key,a.name); });
+}
 function renderLayers(p){ const L=[["structure","🧱 Estructura (paredes)"],["openings","🚪 Puertas y ventanas"],
     ["electrical","⚡ Elementos eléctricos"],["labels","🔖 Etiquetas, cotas y texto"],["fondo","🖼 Fondo de calco"]];
   p.innerHTML=`<div class="kdt sec" style="margin-bottom:10px">Capas</div>`+
@@ -3646,10 +4341,16 @@ window.addEventListener("pointerup",end3,true);
 window.addEventListener("pointercancel",end3,true);
 
 /* ===================== Diálogos propios (prompt/confirm del navegador están bloqueados en el visor) ===================== */
-function uiModal(html){ const m=document.createElement("div");
+function uiModal(html){ const m=document.createElement("div"); m.className="uimodal";
   m.style.cssText="position:fixed;inset:0;background:rgba(4,10,22,.72);z-index:100;display:flex;align-items:center;justify-content:center;padding:20px";
   m.innerHTML='<div style="background:var(--panel);border:1px solid var(--line2);border-radius:12px;max-width:400px;width:100%;padding:18px">'+html+'</div>';
   document.body.appendChild(m); return m; }
+// ¿Hay un diálogo tapando la app? Los atajos globales NO deben atravesarlo:
+// con un modal abierto, Delete borraba la selección del plano por DETRÁS y las
+// letras cambiaban de herramienta, todo sin que el usuario lo viera.
+function hayModal(){ return !!document.querySelector(
+  ".uimodal,#tutomodal,#projmodal,#blkmodal,#cargmodal,#unimodal"); }
+
 function pedir(titulo,def,tipo){ return new Promise(res=>{
   const m=uiModal('<div class="kdt" style="margin-bottom:10px">'+titulo+'</div>'+
     '<input id="uiIn" type="'+(tipo||"text")+'" value="'+String(def!=null?def:"").replace(/"/g,"&quot;")+'" style="width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:7px;color:var(--ink);padding:9px;font-size:14px">'+
@@ -4464,6 +5165,7 @@ function download(name,type,data){ const b=new Blob([data],{type}); const u=URL.
 // teclado
 window.addEventListener("keydown",e=>{
   if(e.target.tagName==="INPUT"||e.target.tagName==="TEXTAREA"||e.target.tagName==="SELECT") return;
+  if(hayModal()) return;   // un diálogo abierto se lleva el teclado entero
   // vista cliente = solo lectura: solo se permite Esc y deshacer/rehacer
   if(vistaCliente&&e.key!=="Escape"&&!((e.ctrlKey||e.metaKey)&&["z","y"].includes(e.key.toLowerCase()))) return;
   if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="z"){ e.preventDefault(); e.shiftKey?redo():undo(); return; }
@@ -4781,7 +5483,7 @@ if(window.parent!==window) document.documentElement.classList.add("embed"); // e
 if(!loadSaved()){ seed(); projectId=newProjectId(); projectName="Casa de ejemplo"; }
 // El catálogo se siembra acá y no en normalizeSettings: un usuario NUEVO no tiene
 // config guardada, así que normalizeSettings ni siquiera se llama y se quedaría sin catálogo.
-settings.catalogo=settings.catalogo||[]; sembrarCatalogo();
+settings.catalogo=settings.catalogo||[]; sembrarCatalogo(); bodCargar();
 // Embebida: la app madre puede pedir un proyecto específico con ?proyecto=<nombre>
 try{ const qP=new URLSearchParams(location.search).get("proyecto");
   if(qP){ const ixQ=loadIndex(); const mQ=ixQ.find(p=>String(p.nombre||"").trim().toLowerCase()===qP.trim().toLowerCase());
