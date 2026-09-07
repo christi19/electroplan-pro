@@ -282,6 +282,50 @@ await c.prueba('y se puede llegar al ultimo campo desplazando', async () => {
   afirmar(visto, 'el ultimo campo no se alcanza ni desplazando');
 });
 
+await c.prueba('la version se puede LEER desde la app, tambien embebida', async () => {
+  // Sin sello visible, "no cambio nada" no se puede ni confirmar ni refutar: el
+  // ?v= del iframe puede estar congelado y el service worker puede estar
+  // sirviendo un HTML viejo. La pestana Capas es el unico sitio que se alcanza
+  // igual embebido en tablet, donde `.embed body.mobile .brand{display:none}`
+  // esconde la marca entera.
+  // La prueba anterior deja el formulario de bodega abierto y ese dialogo tapa
+  // las pestanas: se cierra antes de navegar.
+  await cpage.click('#bfNo');
+  await cpage.waitForFunction(() => !document.querySelector('#bfNom'), null, { timeout: 5000 });
+  await cpage.click('.tabs button[data-tab="layers"]');
+  await cpage.waitForSelector('#appver', { timeout: 5000 });
+  const v = await cpage.evaluate(() => {
+    const n = document.getElementById('appver');
+    const r = n.getBoundingClientRect();
+    return { txt: n.textContent.trim(), visible: r.width > 0 && r.height > 0 };
+  });
+  afirmar(v.visible, 'el sello de version no se ve');
+  afirmar(/\bv\d+\b/.test(v.txt), `el sello no dice una version: "${v.txt}"`);
+});
+
+await c.prueba('la version de la app y la del service worker no se desincronizan', async () => {
+  // Son la MISMA version: si el sello dice v64 y el caché dice v63, el sello
+  // miente y deja de servir para diagnosticar.
+  const { readFileSync, existsSync } = await import('node:fs');
+  const { resolve, dirname } = await import('node:path');
+  const enApp = (readFileSync(resolve(ARCHIVO), 'utf8').match(/APP_VER\s*=\s*"(v\d+)"/) || [])[1];
+  afirmar(enApp, 'no encontre APP_VER en el archivo');
+  // El sello se compara con el service worker SOLO donde hay uno. El editor
+  // embebido se sirve desde un arbol sin sw.js (la app madre lo carga en un
+  // iframe y el registro esta guardado con window.parent===window), y ahi no hay
+  // nada que pueda desincronizarse. Se dice en voz alta para que el salto no se
+  // confunda nunca con un verde de verdad.
+  const base = /app[\/\\]index\.html$/.test(ARCHIVO) ? dirname(resolve(ARCHIVO)) : resolve('app');
+  const swPath = resolve(base, 'sw.js');
+  if (!existsSync(swPath)) {
+    console.log(`     (sin sw.js en ${base}: arbol sin service worker, nada que sincronizar; sello ${enApp})`);
+    return;
+  }
+  const enSW = (readFileSync(swPath, 'utf8').match(/planelectrico-(v\d+)/) || [])[1];
+  afirmar(enSW, 'no encontre el nombre de cache en sw.js');
+  afirmarIgual(enApp, enSW, 'el sello de la app y el cache del service worker no coinciden');
+});
+
 await chico.browser.close();
 
 const verde = c.resumen();

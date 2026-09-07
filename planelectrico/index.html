@@ -585,7 +585,18 @@
 "use strict";
 (function(){
 /* ===================== Modelo ===================== */
+// SELLO DE VERSION. Tiene que subir en cada release, junto con el nombre de
+// cache del service worker (planelectrico-vNN): son la MISMA version.
+// Existe porque sin el, "no cambio nada" no se puede ni confirmar ni refutar:
+// el ?v= del iframe lleva releases congelado y el service worker puede estar
+// sirviendo un HTML viejo. Se pinta donde el usuario lo pueda leer y dictar.
+const APP_VER="v64";
 let ID=1; const uid=p=>(p||"n")+(ID++);
+// El script corre con el DOM ya montado, asi que la marca se sella al vuelo en
+// vez de repetir el numero en el HTML: dos copias se desincronizan solas.
+try{ const bs=document.querySelector(".brand small");
+  if(bs) bs.textContent=bs.textContent.trim()+" · "+APP_VER;
+  document.title=document.title+" "+APP_VER; }catch(_){}
 const CM_PER_M=100;
 const MATERIALS={
   "Ladrillo":{price:45},"Bloque":{price:30},"Drywall":{price:35},
@@ -999,6 +1010,40 @@ function projectOnWall(w,p){
   const L2=dx*dx+dy*dy; if(!L2)return{t:0,d:dist(a,p)};
   let t=((p.x-a.x)*dx+(p.y-a.y)*dy)/L2; t=Math.max(0,Math.min(1,t));
   const px=a.x+t*dx, py=a.y+t*dy; return {t, d:Math.hypot(p.x-px,p.y-py), x:px,y:py}; }
+// Distancia de un punto a un SEGMENTO, en unidades de mundo. No existia:
+// projectOnWall solo sirve para paredes porque necesita sus nodos.
+function distSeg(p,a,b){
+  const vx=b.x-a.x, vy=b.y-a.y, L2=vx*vx+vy*vy;
+  if(!L2) return Math.hypot(p.x-a.x,p.y-a.y);
+  let t=((p.x-a.x)*vx+(p.y-a.y)*vy)/L2; t=Math.max(0,Math.min(1,t));
+  return Math.hypot(p.x-(a.x+t*vx), p.y-(a.y+t*vy));
+}
+// El tubo y la cota mas cercanos, con el MISMO contrato que nearestWall:
+// null si no hay nada a tiro. Se usan para el rescate del tap cercano.
+function nearestRoute(p,maxd){ let best=null,bd=maxd;
+  for(const r of doc.routes){ if(!enPiso(r)||!r.pts||r.pts.length<2) continue;
+    for(let i=1;i<r.pts.length;i++){ const d=distSeg(p,r.pts[i-1],r.pts[i]);
+      if(d<bd){ bd=d; best={r,dist:d}; } } }
+  return best; }
+function nearestDim(p,maxd){ let best=null,bd=maxd;
+  for(const dm of doc.dims){ if(!enPiso(dm)||!dm.a||!dm.b) continue;
+    const d=distSeg(p,dm.a,dm.b); if(d<bd){ bd=d; best={dim:dm,dist:d}; } }
+  return best; }
+
+// Distancia de un punto a un objeto CONCRETO (tubo o cota), no al mas cercano de
+// todos. La usa startSelect para decidir quien esta mas cerca cuando el DOM
+// acerto una linea larga y ademas hay un vertice dentro del radio del puntero.
+function distAObj(kind,id,p){
+  if(kind==="route"){ const r=doc.routes.find(x=>x.id===id);
+    if(!r||!r.pts||r.pts.length<2) return null;
+    let m=Infinity;
+    for(let i=1;i<r.pts.length;i++) m=Math.min(m,distSeg(p,r.pts[i-1],r.pts[i]));
+    return m; }
+  if(kind==="dim"){ const d=doc.dims.find(x=>x.id===id);
+    return (d&&d.a&&d.b)?distSeg(p,d.a,d.b):null; }
+  return null;
+}
+
 function nearestWall(p,maxd){ let best=null,bd=maxd||20/scale;
   for(const w of doc.walls){ if(!enPiso(w))continue; const pr=projectOnWall(w,p); if(pr.d<bd){bd=pr.d;best={w,pr};} } return best; }
 
@@ -2152,7 +2197,14 @@ function arrastreMinPx(tipo){ return tipo==="touch" ? 8 : tipo==="pen" ? 4 : 3; 
 function radioSelPx(tipo){ return tipo==="touch" ? 22 : tipo==="pen" ? 14 : 10; }
 const LAPIZ_GRACIA_MS=700;
 let arrOrigen=null;   // dónde nació el gesto, en px de pantalla (histéresis del arrastre)
-let ultimoLapiz=0;
+// -Infinity y no 0: "todavia no hubo lapiz" no puede significar "hubo lapiz hace
+// 0 ms". performance.now() tambien arranca en 0 al cargar la pagina, asi que con
+// 0 la resta daba menos que la ventana de gracia durante los primeros
+// LAPIZ_GRACIA_MS de vida de la app: TODO toque de dedo —tocar, arrastrar,
+// panear, pellizcar— se descartaba como "la mano mientras el lapiz dibuja". El
+// primer toque tras abrir o recargar moria sin dejar rastro. Medido en un iPad
+// simulado con el reloj fijado dentro de la ventana.
+let ultimoLapiz=-Infinity;
 function anotarLapiz(ev){ if(ev.pointerType==="pen"&&(ev.type==="pointerdown"||ev.buttons>0)) ultimoLapiz=performance.now(); }
 function dedoEnModoLapiz(ev){ return ev.pointerType==="touch" && (performance.now()-ultimoLapiz)<LAPIZ_GRACIA_MS; }
 // --- gestos táctiles: dos dedos = pellizco (zoom) + mover lienzo ---
@@ -2636,7 +2688,13 @@ function colocarElemento(cat,sp){
 // le gana a la pared y al vacío. Antes el ancla iba primero y una toma a menos de
 // 14 px de un vértice no se podía seleccionar de ninguna forma — y si el vértice
 // le quedaba justo debajo, ningún zoom la rescataba.
-const OBJ_ENCIMA={element:1,opening:1,label:1,text:1,photo:1,stair:1,route:1,dim:1};
+const // Objetos que TAPAN al ancla: si uno de estos está bajo el dedo, el agarre de
+// esquina no se activa. Existe porque el ancla se comía las tomas cercanas a un
+// vértice. Pero el tubo y la cota NO entran: son líneas largas —se agarran en
+// cualquier punto de su recorrido— mientras que un vértice tiene UN solo sitio
+// donde tocarlo. Con route/dim adentro, un tubo que terminaba en una esquina
+// dejaba ese vértice imposible de mover (defecto medido, anterior a este ciclo).
+OBJ_ENCIMA={element:1,opening:1,label:1,text:1,photo:1,stair:1};
 // Qué kinds son OBJETOS seleccionables (las agarraderas chandle/ohandle/txresize
 // y los nodos no lo son). La comparten el tap del Marco y el modo ⊕ Sumar.
 const SEL_KINDS={wall:1,element:1,label:1,text:1,opening:1,route:1,stair:1,photo:1,dim:1};
@@ -2676,14 +2734,38 @@ function startSelect(ev,w){
   // anclaDibujada() es la misma regla que usa render(): así nunca hay un agarre
   // donde no hay nada pintado, ni sobre una capa que el usuario mandó a bloquear.
   const nn=capaViva("structure")?nearestNode(w,Math.max(14,radioSelPx(ev.pointerType))/scale):null;
-  const ancla=(nn&&anclaDibujada(nn)&&!(k&&id&&OBJ_ENCIMA[k]))?nn:null;
+  let ancla=(nn&&anclaDibujada(nn)&&!(k&&id&&OBJ_ENCIMA[k]))?nn:null;
+  // El tubo y la cota no estan en OBJ_ENCIMA porque una linea larga se agarra en
+  // CUALQUIER punto de su recorrido y un vertice tiene UNO solo: con ellas
+  // adentro, un tubo que terminaba en una esquina dejaba el vertice imposible de
+  // mover. Pero sacarlas en bloque abrio el espejo: un tubo que PASA cerca de una
+  // esquina se volvia inagarrable, y el tap APUNTADO al tubo movia el vertice
+  // (medido: la esquina saltaba de 0,0 a 45,35 — la casa se deformaba sola).
+  // Ninguna de las dos listas sirve; sirve el mismo criterio que ya usa el
+  // rescate de abajo: gana el MAS CERCANO al puntero.
+  if(ancla&&k&&id&&(k==="route"||k==="dim")){
+    const n0=N(ancla), dNodo=Math.hypot(w.x-n0.x,w.y-n0.y), dLin=distAObj(k,id,w);
+    if(dLin!=null&&dLin<dNodo) ancla=null; }
   // Ctrl del mouse y ⊕ Sumar del dedo son el MISMO modificador (regla 21).
   const sumar=ctrl||modoSumar;
-  // Ctrl/⊕ sobre una esquina: el ancla no es un objeto seleccionable, así que
-  // lo que el usuario quiere sumar a la selección es la pared que pasa por ahí.
-  // capaViva: nearestWall no mira candados y este camino se saltaba la regla —
-  // con Estructura bloqueada, cada tap cercano metía una pared protegida.
-  if(sumar&&capaViva("structure")&&(!k||!id||k==="node")){ const nw=nearestWall(w,22/scale); if(nw){ k="wall"; id=nw.w.id; } }
+  // Ctrl/⊕ sobre una esquina o cerca de una línea: el ancla no es un objeto
+  // seleccionable, así que lo que el usuario quiere sumar a la selección es el
+  // objeto que pasa por ahí. capaViva: los nearest* no miran candados y este
+  // camino se saltaba la regla — con Estructura bloqueada, cada tap cercano
+  // metía una pared protegida.
+  // Antes solo se rescataba la PARED. Desde que el tap cercano también rescata
+  // tubos y cotas, sumar tenía que seguirle el paso: si no, un Ctrl mal apuntado
+  // cerca de un tubo caía en el rescate de abajo y REEMPLAZABA la selección
+  // entera en vez de agrandarla. Gana el más cercano, igual que allá.
+  if(sumar&&(!k||!id||k==="node")){
+    const tolS=22/scale; let m=null;
+    if(capaViva("structure")){ const nw=nearestWall(w,tolS);
+      if(nw) m={d:nw.pr.d,k:"wall",id:nw.w.id}; }
+    if(capaViva("electrical")){ const nr=nearestRoute(w,tolS);
+      if(nr&&(!m||nr.dist<m.d)) m={d:nr.dist,k:"route",id:nr.r.id}; }
+    if(capaViva("labels")){ const nd=nearestDim(w,tolS);
+      if(nd&&(!m||nd.dist<m.d)) m={d:nd.dist,k:"dim",id:nd.dim.id}; }
+    if(m){ k=m.k; id=m.id; } }
   // El toggle se DIFIERE al soltar: en el down no se sabe si esto es un tap
   // (sumar/quitar) o un arrastre. Decidirlo acá hacía que arrastrar lo recién
   // sumado lo des-sumara, y que un pellizco iniciado sobre una pared
@@ -2718,21 +2800,62 @@ function startSelect(ev,w){
       if(o){ const wl=doc.walls.find(x=>x.id===o.wallId);
         if(wl){ const L=wallLen(wl); off=projectOnWall(wl,w).t*L-(o.d!=null?o.d:L/2); } }
       action=o?{type:"omove",o,off,moved:false}:null; render(); return; }
-    if(k==="route"){ setSel([{type:"route",id}]); render(); return; }
+    // El tubo era el UNICO objeto que se dejaba elegir y despues no respondia al
+    // dedo: esta rama armaba la seleccion y salia sin action, a diferencia de sus
+    // hermanas stair/photo. Se guardan los puntos originales (pts0) porque el
+    // movimiento es RIGIDO: el iman se resuelve UNA vez sobre el desplazamiento y
+    // el MISMO delta va a todos los puntos. Redondear cada punto por su cuenta
+    // haria que el tubo CAMBIARA DE LARGO con solo moverlo — la regresion que ya
+    // costo la pared.
+    if(k==="route"){ setSel([{type:"route",id}]); const r=doc.routes.find(x=>x.id===id);
+      action=r?{type:"routemove",r,pts0:r.pts.map(p=>({x:p.x,y:p.y})),sx:w.x,sy:w.y,moved:false}:null;
+      render(); return; }
     if(k==="stair"){ setSel([{type:"stair",id}]); const st=doc.stairs.find(x=>x.id===id);
       action=st?{type:"stairmove",st,dx:w.x-st.x,dy:w.y-st.y,moved:false}:null; render(); return; }
     if(k==="photo"){ setSel([{type:"photo",id}]); const ph=doc.photos.find(x=>x.id===id);
       action=ph?{type:"photomove",ph,dx:w.x-ph.x,dy:w.y-ph.y,moved:false}:null; render(); return; }
-    if(k==="dim"){ setSel([{type:"dim",id}]); render(); return; }
+    // La cota guarda COPIAS de sus dos puntos (commitDim hace a:{...draft.start}),
+    // no ids de nodo: moverla mueve la cota y nada mas. La casa no se deforma.
+    if(k==="dim"){ setSel([{type:"dim",id}]); const d=doc.dims.find(x=>x.id===id);
+      action=d?{type:"dimmove",d,a0:{...d.a},b0:{...d.b},sx:w.x,sy:w.y,moved:false}:null;
+      render(); return; }
   }
-  // Último recurso ANTES del vacío: el blanco DOM de una pared mide ±11 px
-  // (la mitad del mínimo táctil) y con dedo 2 de 5 taps fallaban — y el fallo
+  // Último recurso ANTES del vacío: el blanco DOM de una línea mide ±8..11 px
+  // (la mitad del mínimo táctil) y con dedo el tap cercano fallaba — y el fallo
   // encima BORRABA la selección. Un rescate geométrico con el radio del puntero
-  // salva el tap cercano; arma también el arrastre, igual que el acierto por DOM.
-  // Con mouse (radio 10 < ±11 del trazo gemelo) el escritorio no cambia nada.
-  if(capaViva("structure")){ const nwF=nearestWall(w,radioSelPx(ev.pointerType)/scale);
-    if(nwF){ const wl=nwF.w; setSel([{type:"wall",id:wl.id}]);
-      action={type:"wall",id:wl.id,sx:w.x,sy:w.y,a0:{...N(wl.a)},b0:{...N(wl.b)},wall:wl,moved:false}; render(); return; } }
+  // lo salva; arma también el arrastre, igual que el acierto por DOM.
+  // Antes se rescataba SOLO la pared y el tubo y la cota quedaban imposibles de
+  // agarrar (medido: 8 px de alcance). Engordar su halo en el DOM no servía:
+  // gElem y gDim van ENCIMA de gWalls, así que un tubo gordo le robaría los taps
+  // a la pared. Acá gana el MÁS CERCANO —sin prioridades inventadas— y como este
+  // camino solo corre cuando el DOM no acertó nada, no le puede robar el tap a
+  // nadie. Cada capa se consulta con capaViva: lo bloqueado no se rescata.
+  {
+    const tol=radioSelPx(ev.pointerType)/scale;
+    let mejor=null;
+    if(capaViva("structure")){ const nw=nearestWall(w,tol);
+      if(nw) mejor={d:nw.pr.d,k:"wall",o:nw.w}; }
+    if(capaViva("electrical")){ const nr=nearestRoute(w,tol);
+      if(nr&&(!mejor||nr.dist<mejor.d)) mejor={d:nr.dist,k:"route",o:nr.r}; }
+    if(capaViva("labels")){ const nd=nearestDim(w,tol);
+      if(nd&&(!mejor||nd.dist<mejor.d)) mejor={d:nd.dist,k:"dim",o:nd.dim}; }
+    if(mejor){
+      // Con un grupo vivo, el rescate NO puede reemplazarlo. La guarda de
+      // seleccion multiple de arriba solo corre cuando el DOM acierta; si el dedo
+      // cae en el HUECO al lado de un miembro (fuera del halo de 16px pero dentro
+      // del radio de 22 del dedo), el gesto llegaba aca y hacia setSel([uno]):
+      // el grupo entero se perdia justo al intentar agarrarlo. Medido: 11 -> 1.
+      // Encontrar un miembro significa "agarrar el grupo por aca", igual que
+      // cuando el acierto por DOM cae sobre uno de ellos.
+      if(selection.length>1&&isSelected(mejor.k,mejor.o.id)){ beginMoveSel(w); return; }
+      if(mejor.k==="wall"){ const wl=mejor.o; setSel([{type:"wall",id:wl.id}]);
+        action={type:"wall",id:wl.id,sx:w.x,sy:w.y,a0:{...N(wl.a)},b0:{...N(wl.b)},wall:wl,moved:false}; }
+      else if(mejor.k==="route"){ const r=mejor.o; setSel([{type:"route",id:r.id}]);
+        action={type:"routemove",r,pts0:r.pts.map(p=>({x:p.x,y:p.y})),sx:w.x,sy:w.y,moved:false}; }
+      else { const dm=mejor.o; setSel([{type:"dim",id:dm.id}]);
+        action={type:"dimmove",d:dm,a0:{...dm.a},b0:{...dm.b},sx:w.x,sy:w.y,moved:false}; }
+      render(); return; }
+  }
   // ELEGIR ES LA FLECHA COMPLETA (Illustrator/Figma/AutoCAD): el vacío arma la
   // MISMA marquesina del Marco — tap corto deselecciona (o apaga ⊕ Sumar
   // conservando el grupo) y arrastre encierra con la caja; todo se resuelve en
@@ -2805,6 +2928,15 @@ function onMove(ev){
       action.st.y=snapNum(w.y-action.dy); action.moved=true; pedirRender(true); return; }
     if(action.type==="photomove"){ action.ph.x=snapNum(w.x-action.dx);
       action.ph.y=snapNum(w.y-action.dy); action.moved=true; pedirRender(true); return; }
+    // Tubo y cota se mueven RIGIDOS: un solo delta imantado para todos sus
+    // puntos, el mismo criterio que usa el movimiento en grupo (action.rts).
+    if(action.type==="routemove"){ const dx=snapNum(w.x-action.sx), dy=snapNum(w.y-action.sy);
+      action.r.pts=action.pts0.map(p=>({x:p.x+dx,y:p.y+dy}));
+      action.moved=true; pedirRender(true); return; }
+    if(action.type==="dimmove"){ const dx=snapNum(w.x-action.sx), dy=snapNum(w.y-action.sy);
+      action.d.a={x:action.a0.x+dx,y:action.a0.y+dy};
+      action.d.b={x:action.b0.x+dx,y:action.b0.y+dy};
+      action.moved=true; pedirRender(true); return; }
     if(action.type==="node"){ const rx=w.x-(action.dx||0), ry=w.y-(action.dy||0);
       doc.nodes[action.id]={x:snapNum(rx),y:snapNum(ry)}; action.moved=true; pedirRender(true); return; }
     if(action.type==="wall"){ const dx=w.x-action.sx, dy=w.y-action.sy; action.moved=true;
@@ -2936,7 +3068,13 @@ function onUp(ev){
         if(action.downK&&action.downId&&SEL_KINDS[action.downK]) hit={type:action.downK,id:action.downId};
         else if(capaViva("structure")){ const nwF=nearestWall({x:action.x0,y:action.y0},radioSelPx(ev.pointerType)/scale);
           if(nwF) hit={type:"wall",id:nwF.w.id}; }
-        if(hit){ if(modoSumar) toggleSel(hit.type,hit.id); else setSel([hit]); }
+        if(hit){ if(modoSumar||ev.ctrlKey||ev.metaKey) toggleSel(hit.type,hit.id); else setSel([hit]); }
+        // Ctrl/⌘ en el VACÍO no borra nada. Sumar es un gesto de puntería: el
+        // que se pasa de largo esperaba agregar, no barrer. Medido: un Ctrl+clic
+        // en vacío se llevaba puesta una selección de 10 objetos. Es la regla de
+        // Illustrator y de Figma, y es lo que hace inofensivo el alcance
+        // generoso del rescate de sumar.
+        else if(ev.ctrlKey||ev.metaKey){ /* la selección se queda como está */ }
         else if(modoSumar){ modoSumar=false;
           avisar("⊕ Sumar apagado — "+(selection.length?("quedan "+selection.length+" elegidos."):"sin selección.")); }
         else setSel([]);
@@ -4115,7 +4253,11 @@ function renderLayers(p){ const L=[["structure","🧱 Estructura (paredes)"],["o
       else extra=`<button class="lyrbtn" data-lock="${k}" title="Bloquear: no se puede seleccionar ni mover">${lock?"🔒":"🔓"}</button>`+
         `<input class="lyrop" type="range" min="10" max="100" value="${op}" data-op="${k}" title="Opacidad ${op}%">`;
       return `<div class="lyrrow"><button class="lyrbtn" data-vis="${k}" title="Ver u ocultar">${vis?"👁":"🙈"}</button>`+
-        `<span class="lyrname">${n}</span>${extra}</div>`; }).join("");
+        `<span class="lyrname">${n}</span>${extra}</div>`; }).join("")+
+    // La marca lleva la version, pero `.embed body.mobile .brand{display:none}`
+    // la esconde justo donde trabaja el electricista: dentro del iframe, en
+    // tablet. Esta pestana se alcanza siempre, embebido o no.
+    `<div class="muted" id="appver" style="margin-top:12px;text-align:center;font-family:var(--mono)">PlanEléctrico Pro ${APP_VER}</div>`;
   p.querySelectorAll("[data-vis]").forEach(b=>b.onclick=()=>{ const k=b.dataset.vis;
     settings["layer_"+k]=!(settings["layer_"+k]!==false); applyLayers(); scheduleSave(); renderPanel(); });
   p.querySelectorAll("[data-lock]").forEach(b=>b.onclick=()=>{ const k=b.dataset.lock;

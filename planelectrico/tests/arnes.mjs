@@ -35,11 +35,24 @@ export async function abrirNavegador({ tactil = false } = {}) {
       ? { hasTouch: true, isMobile: true, viewport: { width: 820, height: 1180 } }
       : { viewport: { width: 1440, height: 900 } }
   );
-  // El stub va ANTES de cargar: onDown llama setPointerCapture sin try/catch y
-  // con pointerId sintetico lanza, abortando el handler a la mitad.
+  // El stub va ANTES de cargar: con un pointerId SINTETICO, setPointerCapture
+  // lanza y aborta el handler a la mitad.
+  //
+  // Pero anularlo del todo MIENTE. La app depende de la captura real para
+  // sobrevivir a su propio render(): el handler de pointerdown saca del DOM el
+  // nodo tocado, y dentro de un iframe Chromium deja de entregar el resto de la
+  // secuencia tactil si no hay captura. Con el stub vacio, TODO gesto sobre un
+  // objeto embebido moria en el pointerdown — un fallo grave que no existe.
+  //
+  // Se intenta la captura de verdad y solo se traga el error de los punteros
+  // inventados: los reales (CDP) conservan su comportamiento de produccion.
   await context.addInitScript(() => {
-    Element.prototype.setPointerCapture = function () {};
-    Element.prototype.releasePointerCapture = function () {};
+    const capt = Element.prototype.setPointerCapture;
+    const libre = Element.prototype.releasePointerCapture;
+    Element.prototype.setPointerCapture = function (id) {
+      try { return capt.call(this, id); } catch (_) { /* puntero sintetico */ } };
+    Element.prototype.releasePointerCapture = function (id) {
+      try { return libre.call(this, id); } catch (_) { /* puntero sintetico */ } };
   });
   return { browser, context };
 }
@@ -147,19 +160,25 @@ export async function arrastrarMouse(page, desde, hasta, pasos = 12) {
  */
 export async function arrastrarDedo(page, desde, hasta, { pasos = 12, tipo = 'touch', id = 1 } = {}) {
   await page.evaluate(async ([d, h, n, tipo, pid]) => {
-    const enPunto = p => document.elementFromPoint(p.x, p.y) || document.getElementById('canvas');
+    const svg = document.getElementById('canvas');
     const ev = (tgt, nombre, p, extra = {}) => tgt.dispatchEvent(new PointerEvent(nombre, {
       pointerId: pid, pointerType: tipo, isPrimary: true, bubbles: true, cancelable: true,
       clientX: p.x, clientY: p.y, buttons: nombre === 'pointerup' ? 0 : 1, ...extra,
     }));
-    const tgt = enPunto(d);
-    ev(tgt, 'pointerdown', d);
+    // El DOWN va al nodo que esta bajo el dedo, para que el hit-test elija el
+    // objeto correcto. Los MOVE ya no: render() recrea el arbol SVG y ese nodo
+    // queda huerfano, asi que los eventos siguientes no llegarian a nadie. Se
+    // despachan sobre el <svg>, que es donde la app escucha pointermove y desde
+    // donde el pointerup BURBUJEA hasta el listener de window. Despacharlo
+    // directo en window dejaria ev.target=window, que no es un Node, y revienta
+    // los handlers que hacen contains(ev.target).
+    ev(document.elementFromPoint(d.x, d.y) || svg, 'pointerdown', d);
     for (let i = 1; i <= n; i++) {
       const p = { x: d.x + (h.x - d.x) * (i / n), y: d.y + (h.y - d.y) * (i / n) };
-      ev(tgt, 'pointermove', p);
+      ev(svg, 'pointermove', p);
       await new Promise(r => requestAnimationFrame(r));
     }
-    ev(tgt, 'pointerup', h);
+    ev(svg, 'pointerup', h);
   }, [desde, hasta, pasos, tipo, id]);
 }
 
