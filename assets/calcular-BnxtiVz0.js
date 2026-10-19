@@ -1,0 +1,21 @@
+import{c as p}from"./createLucideIcon-D8SfKfFr.js";import{M as u,T as N}from"./index-B9qUyOn7.js";/**
+ * @license lucide-react v0.546.0 - ISC
+ *
+ * This source code is licensed under the ISC license.
+ * See the LICENSE file in the root directory of this source tree.
+ */const z=[["circle",{cx:"12",cy:"12",r:"10",key:"1mglay"}],["path",{d:"m9 12 2 2 4-4",key:"dzmm74"}]],j=p("circle-check",z);/**
+ * @license lucide-react v0.546.0 - ISC
+ *
+ * This source code is licensed under the ISC license.
+ * See the LICENSE file in the root directory of this source tree.
+ */const x=[["path",{d:"M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z",key:"1rqfz7"}],["path",{d:"M14 2v4a2 2 0 0 0 2 2h4",key:"tnqrlb"}],["path",{d:"M10 9H8",key:"b1mrlr"}],["path",{d:"M16 13H8",key:"t4e002"}],["path",{d:"M16 17H8",key:"z1uh3a"}]],E=p("file-text",x);/**
+ * @license lucide-react v0.546.0 - ISC
+ *
+ * This source code is licensed under the ISC license.
+ * See the LICENSE file in the root directory of this source tree.
+ */const O=[["path",{d:"M5 12h14",key:"1ays0h"}],["path",{d:"M12 5v14",key:"s699le"}]],V=p("plus",O);/**
+ * @license lucide-react v0.546.0 - ISC
+ *
+ * This source code is licensed under the ISC license.
+ * See the LICENSE file in the root directory of this source tree.
+ */const P=[["path",{d:"M10 11v6",key:"nco0om"}],["path",{d:"M14 11v6",key:"outv1u"}],["path",{d:"M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6",key:"miytrc"}],["path",{d:"M3 6h18",key:"d0wm0j"}],["path",{d:"M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2",key:"e791ji"}]],D=p("trash-2",P),i=e=>typeof e=="number"&&Number.isFinite(e)&&e>=0?e:0;function C(e,a=3){if(e.length===0)return"";if(e.length===1)return e[0];if(e.length<=a)return`${e.slice(0,-1).join(", ")} y ${e[e.length-1]}`;const n=e.length-a;return`${e.slice(0,a).join(", ")} y ${n} más`}function T(e,a){var n;if(!e||!a)return 0;if(e==="cable_m")return i(a.magnitudes.cableM);if(e==="tubo_m")return i(a.magnitudes.tuboM);if(e==="puntos")return i(a.magnitudes.puntos);if(e.startsWith("tipo:")){const s=e.slice(5);return i((n=a.articulos.find(d=>d.key===s))==null?void 0:n.quantity)}return 0}function I(e){const a=[],n=e.cubicacion,s=!n||n.source.moneda===u;s||a.push({tipo:"moneda",detalle:`El plano está en «${n.source.moneda}» y este proyecto cotiza en «${u}». Se muestran las cantidades sin importes: revisá la moneda en el plano.`}),n||a.push({tipo:"sin-cubicacion",detalle:"Este proyecto no tiene cantidades de ningún plano todavía."});const d=t=>{var o;return s?i((o=e.precios)==null?void 0:o[t]):0},k=t=>(e.manuales??[]).some(o=>o.atado===t),b=t=>/^cable(_\d+)?$/.test(t)&&k("cable_m")||t==="tubo"&&k("tubo_m"),y=((n==null?void 0:n.articulos)??[]).filter(t=>!b(t.key)).map(t=>{const o=d(t.key);return{key:t.key,name:t.name,category:t.category,quantity:t.quantity,unit:t.unit,unitCost:o,subtotal:t.quantity*o,origen:"plano"}}),A=(e.manuales??[]).map(t=>{const o=s?i(t.unitCost):0,q=t.atado?T(t.atado,n):i(t.quantity);return{key:t.id,name:t.name,category:t.category,quantity:q,unit:t.unit,unitCost:o,subtotal:q*o,origen:"manual"}}),f=[...y,...A],g=t=>(e.noAplica??[]).includes(t),r=y.filter(t=>t.unitCost===0&&g(t.key));s&&r.length>0&&a.push({tipo:"no-aplica",detalle:`${C(r.map(t=>t.name))} ${r.length===1?"va":"van"} en ${u}0 porque ${r.length===1?"lo compra":"los compra"} el cliente: vos ponés la salida, el breaker y el cable.`});const c=s?y.filter(t=>t.unitCost===0&&!g(t.key)).map(t=>({key:t.key,name:t.name})):[];c.length>0&&a.push({tipo:"sin-precio",detalle:`Falta${c.length===1?"":"n"} ${c.length===1?"el precio":"los precios"} de ${C(c.map(t=>t.name))}: van en ${u}0 y el total queda corto.`});const l=i(n==null?void 0:n.magnitudes.puntos),h=s&&l>0&&i(e.precioPunto)===0;h&&a.push({tipo:"sin-mano-obra",detalle:`Falta decir cuánto cobrás por punto: son ${l} punto${l===1?"":"s"} sin mano de obra.`});const M=s?l*i(e.precioPunto):0,$=f.reduce((t,o)=>t+o.subtotal,0),m=$+M,_=Math.round(m*N),v=s?i(e.descuento):0;return{lineas:f,puntos:l,manoObra:M,materialesTotal:$,subtotalNeto:m,iva:_,descuento:v,total:Math.max(0,m+_-v),avisos:a,faltantes:c,faltaManoObra:h,completa:s&&c.length===0&&!h&&!!n,actualizadoEn:(n==null?void 0:n.exportedAt)??""}}export{j as C,E as F,V as P,D as T,I as c,C as l};

@@ -102,6 +102,31 @@
     border:1px solid var(--line2);border-radius:12px;font-weight:700;font-size:13px;
     box-shadow:0 4px 14px rgba(0,0,0,.18);}
   .floorbar button:focus-visible{outline:2px solid var(--accent);outline-offset:1px;}
+  /* Medida exacta con el dedo: la única forma de dibujar a medida en un iPad sin
+     teclado. Píldora al centro mientras se traza una pared; abre un teclado propio. */
+  .medidabar{position:absolute;left:50%;transform:translateX(-50%);bottom:12px;z-index:6;display:none;}
+  .medidabar button{min-height:44px;padding:0 16px;background:var(--panel);color:var(--ink);
+    border:1px solid var(--ok);border-radius:12px;font-weight:800;font-size:13px;box-shadow:0 4px 14px rgba(0,0,0,.18);}
+  .medidabar button:focus-visible{outline:2px solid var(--accent);outline-offset:1px;}
+  #medidaPad{position:fixed;left:50%;transform:translateX(-50%);bottom:12px;z-index:70;width:min(380px,calc(100vw - 16px));
+    background:var(--panel);border:1px solid var(--line2);border-radius:16px;padding:10px;box-shadow:0 10px 40px rgba(0,0,0,.35);
+    padding-bottom:calc(10px + env(safe-area-inset-bottom));}
+  #medidaPad .mpTop{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
+  #medidaPad .mpVal{flex:1;min-height:48px;display:flex;align-items:center;justify-content:flex-end;padding:0 12px;border-radius:10px;
+    border:1px solid var(--line2);background:var(--bg,transparent);font:800 24px var(--mono);color:var(--ink);}
+  #medidaPad .mpVal.vacio{color:var(--faint,var(--soft));font-weight:600;font-size:15px;}
+  #medidaPad .mpSeg{display:flex;border:1px solid var(--line2);border-radius:10px;overflow:hidden;}
+  #medidaPad .mpSeg button{min-width:48px;min-height:48px;border:0;border-radius:0;justify-content:center;font-weight:800;background:transparent;}
+  #medidaPad .mpSeg button.on,#medidaPad .mpDir button.on{background:var(--accent);color:#111;border-color:var(--accent);}
+  #medidaPad .mpDir{display:flex;gap:6px;margin-bottom:8px;}
+  #medidaPad .mpDir button{flex:1;min-height:46px;justify-content:center;font-size:18px;padding:0;}
+  #medidaPad .mpGrid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;}
+  #medidaPad .mpGrid button{min-height:48px;justify-content:center;font:700 20px var(--mono);padding:0;}
+  #medidaPad .mpGrid .mpOk{grid-row:span 2;background:var(--ok);border-color:var(--ok);color:#06200f;font-family:inherit;font-weight:800;font-size:15px;}
+  body.medida-abierta #hint{display:none!important;} /* el teclado trae su propia explicación */
+  #medidaPad .mpGrid .mpOk:disabled{opacity:1;background:transparent;color:var(--soft);border-color:var(--line2);}
+  #medidaPad .mpCero{grid-column:span 2;}
+  #medidaPad .mpNota{font-size:11px;color:var(--soft);margin:-2px 2px 8px;}
   .zoombar{position:absolute;right:12px;bottom:12px;display:flex;flex-direction:column;gap:6px;}
   .zoombar button{width:40px;height:40px;justify-content:center;padding:0;font-size:18px;background:var(--panel);}
   .zoombar button.on{border-color:var(--accent);color:var(--accent);}
@@ -242,6 +267,10 @@
   /* Panel de Capas (Photoshop/Illustrator: ver / bloquear / opacidad) */
   /* --- Lista de materiales: cifras grandes y legibles a un brazo de distancia --- */
   .matstats{display:flex;gap:6px;margin-bottom:10px;}
+  .cab3{display:flex;gap:6px;margin-top:6px;}
+  .cab3 span{flex:1;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:6px 8px;
+    font-size:10px;color:var(--faint);text-transform:uppercase;letter-spacing:.05em;}
+  .cab3 b{display:block;font-family:var(--mono);font-size:14px;color:var(--ink);text-transform:none;letter-spacing:0;}
   .matstat{flex:1;background:var(--panel2);border:1px solid var(--line);border-radius:8px;
     padding:8px 6px;text-align:center;min-width:0;}
   .matstat b{display:block;font-family:var(--mono);font-size:17px;color:var(--ink);
@@ -253,6 +282,8 @@
   .matpuente b{font-family:var(--mono);color:var(--accent);}
   .matpuente.vacio{color:var(--soft);}
   .bodnom small.mc{font-weight:700;}
+  .bodnom small.bodact{color:var(--ink);opacity:.8;}
+  .bodnom small.bodact.alerta{color:var(--danger);opacity:1;font-weight:700;}
   .bodnom small.mc.falta{color:var(--danger);}
   .bodnom small.mc.ok{color:var(--ok);}
   .matgrupo{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;
@@ -412,6 +443,7 @@
   body.mobile .zoombar{bottom:calc(var(--peekh,60px) + 86px + env(safe-area-inset-bottom));right:8px;}
   /* la píldora de pisos sube por encima de la fila de la shapebar para no chocarle */
   body.mobile .floorbar{left:8px;bottom:calc(var(--peekh,60px) + 140px + env(safe-area-inset-bottom));}
+  body.mobile .medidabar{bottom:calc(var(--peekh,60px) + 140px + env(safe-area-inset-bottom));}
   body.mobile #selbar{left:8px;top:8px;transform:none;
     max-width:calc(100% - 112px);flex-wrap:wrap;justify-content:flex-start;}
   body.mobile .shapebar{top:auto;bottom:calc(var(--peekh,60px) + 86px + env(safe-area-inset-bottom));}
@@ -419,7 +451,7 @@
   /* z-index 45 > 44 de #btnInstall: deshacer es critico y la pildora de instalar
      es promocional. Si algo vuelve a encimarse, el toque igual llega al deshacer. */
   body.mobile .fabs{display:flex;position:absolute;right:8px;top:8px;gap:6px;z-index:45;}
-  body.mobile .fabs>button{width:42px;height:42px;justify-content:center;background:var(--panel);font-size:17px;}
+  body.mobile .fabs>button{width:44px;height:44px;justify-content:center;background:var(--panel);font-size:17px;} /* ✔ ✕: blanco táctil ≥44 (regla 18) */
   /* Deshacer/rehacer: control segmentado tipo mando (rocker) */
   #vacio3d{position:absolute;inset:0;display:none;align-items:center;justify-content:center;
     text-align:center;padding:24px;color:var(--ink);font-size:14px;line-height:1.5;
@@ -444,6 +476,9 @@
     background:transparent;border:1px solid var(--ok);color:var(--ok);}
   #btnInstall:hover{background:rgba(76,195,138,.12);border-color:var(--ok);}
   #btnInstall[hidden]{display:none!important;}
+  /* Mientras se traza o se coloca, aparecen ✔ ✕ al lado del deshacer y el grupo
+     se corre encima de la píldora: con trabajo en curso, instalar puede esperar. */
+  body.mobile.trazando #btnInstall{display:none!important;}
   /* La pildora va AL LADO del rocker de deshacer, no encima ni debajo.
      right:110px = los 8px del borde + los 94px que mide el rocker + 8 de aire.
      Antes compartia right:8px con el rocker y le tapaba 31 px en iPad (el 70 %
@@ -550,6 +585,9 @@
     </div>
     <div class="floorbar" id="floorbar">
       <button id="floorbtn" title="Pisos de la obra" aria-label="Pisos de la obra: cambiar de planta, renombrar o agregar">🏢 Planta 1</button>
+    </div>
+    <div class="medidabar" id="medidabar">
+      <button id="btnMedida" aria-label="Escribir la medida exacta de esta pared">📏 Medida exacta</button>
     </div>
     <div class="shapebar" id="selbar" style="display:none"></div>
     <div class="ctxbar" id="ctxbar" style="display:none"></div>
@@ -699,6 +737,53 @@ function sembrarCatalogo(){
     settings.catalogo=CATALOGO_CR.map(m=>Object.assign({id:uid("mat")},m));
   scheduleSave();
 }
+/* ===================== Ensambles: lo que va con cada punto =====================
+   Patrón de los estimadores profesionales (STACK, McCormick): poner una toma no es
+   poner un ícono, es comprar su caja y su placa. El DISPOSITIVO no va acá —ya es su
+   propio renglón por tipo—; acá van solo los accesorios, así nada se cuenta dos veces.
+   Son SUGERIDOS y editables. Viven en la configuración del aparato y no en el plano:
+   son el estándar del electricista, igual en todas sus obras.
+   cant = piezas por punto. 0.5 = una cada dos puntos. Las piezas en unidades se
+   redondean hacia arriba al sumar (nadie compra media caja). */
+const ENS_PIEZAS={
+  caja_rect:["Caja rectangular 2×4","u"],
+  caja_oct:["Caja octagonal","u"],
+  placa:["Placa (tapa)","u"] };
+const ENS_SEMILLA={
+  toma:["caja_rect","placa"], toma_doble:["caja_rect","placa"], toma_gfci:["caja_rect","placa"],
+  toma_220:["caja_rect","placa"],
+  interruptor:["caja_rect","placa"], sw_doble:["caja_rect","placa"], sw_triple:["caja_rect","placa"],
+  sw_3vias:["caja_rect","placa"],
+  timbre:["caja_rect","placa"], tv:["caja_rect","placa"], datos:["caja_rect","placa"],
+  lampara:["caja_oct"], plafon:["caja_oct"], spot:["caja_oct"], aplique:["caja_oct"], abanico:["caja_oct"] };
+function ensamblesDeFabrica(){ const out={};
+  Object.keys(ENS_SEMILLA).forEach(t=>{ out[t]=ENS_SEMILLA[t].map(k=>
+    ({nombre:ENS_PIEZAS[k][0],unidad:ENS_PIEZAS[k][1],cant:1})); });
+  return out; }
+function sembrarEnsambles(){
+  if(settings.ensamblesSembrados) return;   // una sola vez: lo que el usuario quite no vuelve
+  settings.ensamblesSembrados=true;
+  if(!settings.ensambles||!Object.keys(settings.ensambles).length) settings.ensambles=ensamblesDeFabrica();
+  scheduleSave(); }
+function ensambleDe(type){ const e=(settings.ensambles||{})[type]; return Array.isArray(e)?e:[]; }
+// La clave de una pieza es su nombre normalizado + su unidad: dos tipos de punto que
+// piden "Caja rectangular 2×4" suman en el mismo renglón.
+function piezaClave(nombre,unidad){
+  return "pz:"+bodNorm(nombre).replace(/[^a-z0-9]+/g,"_").replace(/^_|_$/g,"")+(unidad==="m"?"|m":""); }
+/** Suma los accesorios de todos los puntos del plano. PURA sobre (elements, ensambles). */
+function explotarPiezas(elements,ensambles){
+  const tot={};
+  (elements||[]).forEach(e=>{
+    if(elInfo(e.type).decorativo) return;
+    const lista=(ensambles||{})[e.type]; if(!Array.isArray(lista)) return;
+    lista.forEach(p=>{ const q=+p.cant||0; if(!(q>0)||!String(p.nombre||"").trim()) return;
+      const k=piezaClave(p.nombre,p.unidad);
+      const f=tot[k]||(tot[k]={key:k,name:String(p.nombre).trim(),category:"Accesorios",
+        unit:p.unidad==="m"?"m":"c/u",quantity:0,ids:[]});
+      f.quantity+=q; f.ids.push(e.id); }); });
+  return Object.values(tot).map(f=>Object.assign(f,{
+    quantity: f.unit==="m" ? Math.round(f.quantity*100)/100 : Math.ceil(f.quantity-1e-9) }))
+    .sort((a,b)=>a.name.localeCompare(b.name)); }
 /* ===================== Bodega del electricista =====================
    La bodega es del ELECTRICISTA, no del plano: el taladro sigue siendo suyo
    aunque cambie de obra. Por eso vive en su PROPIA clave de localStorage,
@@ -708,6 +793,16 @@ function sembrarCatalogo(){
 const BOD_KEY="planelectrico:bodega";
 const BOD_CATS=[["herramienta","🔧 Herramienta"],["material","🧱 Material"],["consumible","🧴 Consumible"]];
 const BOD_UNI=[["u","unidades"],["m","metros"],["caja","cajas"],["rollo","rollos"]];
+// Una HERRAMIENTA no es solo una cantidad: es un activo con dueño, estado,
+// serie y garantía. Se guarda en it.activo (aditivo: lo viejo sigue igual).
+const BOD_ESTADOS=[["buena","🟢 Sirve"],["reparacion","🟠 En reparación"],["perdida","🔴 Perdida o robada"]];
+function bodEstado(e){ const f=BOD_ESTADOS.find(x=>x[0]===e); return f?f[1]:BOD_ESTADOS[0][1]; }
+function bodGarantia(a){ if(!a||!a.garantia) return "";
+  const d=new Date(a.garantia+"T23:59:59"); if(isNaN(d)) return "";
+  return (d<new Date()?"garantía vencida el ":"garantía hasta ")+d.toLocaleDateString("es-CR",{day:"2-digit",month:"2-digit",year:"2-digit"}); }
+function bodActivoTxt(it){ const a=it.activo; if(it.categoria!=="herramienta"||!a) return "";
+  return [a.responsable?"👤 "+a.responsable:"", a.estado&&a.estado!=="buena"?bodEstado(a.estado):"", a.serie?"serie "+a.serie:"", bodGarantia(a)]
+    .filter(Boolean).join(" · "); }
 let bodega={v:1,sembrada:false,ubicaciones:[],items:[],movs:[],enlaces:{}};
 let BID=1; const bid=p=>p+(BID++);
 
@@ -847,11 +942,25 @@ function circuitCableM(c){
   const tocaTablero=!!p&&rs.some(r=>(r.pts||[]).some(q=>Math.abs(q.x-p.x)+Math.abs(q.y-p.y)<60));
   if(rs.length&&tocaTablero) return dibujado;
   if(!p) return dibujado;
-  const pe=doc.elements.find(e=>e.type==="panel"); const pfl=pisoIdx(pe&&pe.piso);
-  let cm=0; doc.elements.filter(e=>e.circuitId===c.id && esElectrico(e)).forEach(e=>{
-    cm += Math.abs(e.x-p.x)+Math.abs(e.y-p.y) + perPt + 260*Math.abs(pisoIdx(e.piso)-pfl); });
+  const cm=recorridoEstimadoCm(doc.elements.filter(e=>e.circuitId===c.id && esElectrico(e)), p);
   // Con el tubo a medio trazar, nunca por debajo de lo ya dibujado.
   return Math.max((cm/CM_PER_M)*desp, dibujado); }
+// Recorrido estimado SIN tubo dibujado, en cm, con la holgura por punto incluida.
+// "tablero" (por defecto, el de siempre): cada punto va solo hasta el tablero.
+// "cadena": del tablero al punto más cercano y de ahí punto a punto, como se
+// cablea un circuito de tomas o luces en la práctica. Siempre en escuadra.
+function recorridoEstimadoCm(pts,p){
+  if(!p||!pts.length) return 0;
+  const pe=doc.elements.find(e=>e.type==="panel"); const pfl=pisoIdx(pe&&pe.piso);
+  const perPt=cableXPuntoCm();
+  const tramo=(a,b,pa,pb)=>Math.abs(a.x-b.x)+Math.abs(a.y-b.y)+260*Math.abs(pa-pb);
+  if(settings.rutaCable!=="cadena"){
+    let cm=0; pts.forEach(e=>{ cm+=tramo(e,p,pisoIdx(e.piso),pfl)+perPt; }); return cm; }
+  let cm=0, pend=pts.slice(), cur=p, curF=pfl;
+  while(pend.length){ let bi=0, bd=Infinity;
+    pend.forEach((e,i)=>{ const d=tramo(e,cur,pisoIdx(e.piso),curF); if(d<bd){ bd=d; bi=i; } });
+    const e=pend.splice(bi,1)[0]; cm+=bd+perPt; cur=e; curF=pisoIdx(e.piso); }
+  return cm; }
 // Cable estimado de los puntos que TODAVÍA no tienen circuito. cotTotales solo
 // recorría doc.circuits, así que el camino normal —dibujar el plano y pasar
 // derecho a cotizar, sin haber armado circuitos— daba 0 m de cable, cubicacionV2
@@ -859,11 +968,35 @@ function circuitCableM(c){
 // largo. Misma cuenta que circuitCableM para que no haya dos calculadoras.
 function cableSueltosM(){
   const p=panelPos(); if(!p) return 0;
-  const pe=doc.elements.find(e=>e.type==="panel"); const pfl=pisoIdx(pe&&pe.piso);
-  const perPt=cableXPuntoCm();
-  let cm=0; doc.elements.filter(e=>!e.circuitId&&esElectrico(e)).forEach(e=>{
-    cm += Math.abs(e.x-p.x)+Math.abs(e.y-p.y) + perPt + 260*Math.abs(pisoIdx(e.piso)-pfl); });
+  const cm=recorridoEstimadoCm(doc.elements.filter(e=>!e.circuitId&&esElectrico(e)), p);
   return (cm/CM_PER_M)*(1+settings.desperdicio/100); }
+/* ---- Cable en tres números (patrón Revit: el largo sale de la geometría y la
+   compra es otra cosa). Antes salía UN número de "cable" que se cobraba al precio
+   de UN hilo THHN, cuando cada circuito lleva varios hilos.
+   1) Recorrido: lo que mide el camino, sin holgura ni desperdicio.
+   2) Por hilo: recorrido + holgura de conexión por punto.
+   3) Compra: por hilo × hilos × (1 + desperdicio), redondeado hacia arriba al metro.
+   Hilos y calibre son SUGERIDOS y se cambian por circuito: 120 V = fase, neutro y
+   tierra; 240 V = dos fases y tierra. El calibre sale del breaker. ---- */
+const CALIBRES=["#14","#12","#10","#8","#6"];
+function polosDe(c){ return c&&doc.elements.some(e=>e.circuitId===c.id&&elInfo(e.type).volt===240)?2:1; }
+function hilosDe(c){ const h=c&&+c.hilos; return h>=2&&h<=6?h:3; }
+function calibreDe(c){ return (c&&CALIBRES.includes(c.calibre)&&c.calibre)||AWG_BY_BREAKER[c&&c.amps]||"#12"; }
+function claveCable(cal){ return cal==="#12"?"cable":"cable_"+String(cal).replace("#",""); }
+function cableTresNumeros(c){
+  const desp=1+(settings.desperdicio||0)/100;
+  const conDesp=c?circuitCableM(c):cableSueltosM();
+  const pts=c?doc.elements.filter(e=>e.circuitId===c.id&&esElectrico(e)).length
+             :doc.elements.filter(e=>!e.circuitId&&esElectrico(e)).length;
+  const porHilo=conDesp/desp, holgura=pts*cableXPuntoCm()/CM_PER_M;
+  const hilos=c?hilosDe(c):3;
+  return { recorrido:Math.max(0,porHilo-holgura), porHilo, hilos,
+    compra:porHilo>0?Math.ceil(porHilo*hilos*desp-1e-9):0, calibre:c?calibreDe(c):"#12" }; }
+/** Metros de compra por calibre, sumando circuitos y puntos sin circuito. */
+function cablePorCalibre(){ const out={};
+  doc.circuits.forEach(c=>{ const t=cableTresNumeros(c); if(t.compra>0) out[t.calibre]=(out[t.calibre]||0)+t.compra; });
+  const s=cableTresNumeros(null); if(s.compra>0) out[s.calibre]=(out[s.calibre]||0)+s.compra;
+  return out; }
 // Pares luz↔apagador del piso activo que todavía no tienen su tubo trazado.
 function paresLuzApagadorPendientes(){
   const out=[];
@@ -1204,7 +1337,7 @@ function doSave(){ try{
   catch(e){ storageOK=false; setSave("err","NO se está guardando");
     // Una sola vez: si no, saltaria en cada autoguardado (cada 600 ms).
     if(!avisoDeGuardadoDado){ avisoDeGuardadoDado=true;
-      avisar("⚠ El plano NO se está guardando en este aparato. Andá a ⇩ Exportar y guardá el «Respaldo completo» AHORA, antes de seguir dibujando."); } } }
+      avisar("⚠ El plano NO se está guardando en este aparato. Andá a ⇩ Exportar y guardá el «Respaldo de TODO» AHORA, antes de seguir dibujando."); } } }
 function openProject(id,fit){ const raw=lsGet("planelectrico:proj:"+id); if(!raw) return false;
   try{ const s=JSON.parse(raw);
     doc=normalizeDoc(s.doc||{nodes:{},walls:[],openings:[],elements:[],dims:[],labels:[],circuits:[],routes:[],photos:[]});
@@ -1766,7 +1899,15 @@ function render(skipPanel){
     bS.setAttribute("aria-pressed",modoSumar?"true":"false"); }
   // FABs ✔/✕ (móvil): visibles con un trazo en curso o una colocación pendiente
   const fOK=document.getElementById("fabOK"),fX=document.getElementById("fabX");
-  if(fOK){ const on=!!draft||!!pendingPlace; fOK.style.display=on?"":"none"; fX.style.display=on?"":"none"; }
+  if(fOK){ const on=!!draft||!!pendingPlace; fOK.style.display=on?"":"none"; fX.style.display=on?"":"none";
+    document.body.classList.toggle("trazando",on); }
+  // Píldora «📏 Medida exacta»: solo mientras se traza una pared. Si el trazo
+  // termina por cualquier camino (cerró la figura, ✕, Esc, otra herramienta),
+  // el teclado se va con él.
+  const trazandoPared=tool==="wall"&&!!draft&&draft.type==="wall"&&!vistaCliente;
+  const mb=document.getElementById("medidabar");
+  if(mb) mb.style.display=trazandoPared&&!document.getElementById("medidaPad")?"block":"none";
+  if(!trazandoPared&&document.getElementById("medidaPad")) cerrarMedidaPad(false);
   applyLayers(); if(!skipPanel){ renderPanel(); renderCtxBar(); } renderStatus(); updateCotBadge(); updateHistBtns();
 }
 
@@ -2087,7 +2228,9 @@ function updateHint(){ const h=document.getElementById("hint");
   const tactil=document.body.classList.contains("mobile");
   const map={ select:"Tocá para elegir y mover UN objeto · arrastrá en el VACÍO para encerrar varios con una caja · "+(tactil?"⊕ Sumar":"Ctrl+clic o ⊕ Sumar")+" agrega de a uno · el ◇ de una pared elegida la CURVA (arrastralo) · "+(tactil?"dos dedos":"Shift+arrastre o ✋")+": mover el plano.",
     marquee:"Arrastrá una caja alrededor de lo que querés elegir: todo lo que quede adentro se selecciona junto. Después arrastrá cualquier pieza elegida para mover el grupo entero.",
-    wall:"Tocá para empezar; estirá (apretado o clic-clic) y al soltar queda el ancla. Tocá el punto inicial para cerrar la figura. Enter/Esc/doble-clic termina. Shift = 45°.",
+    wall:tactil
+      ?"Tocá para empezar y tocá donde va cada esquina. Para una medida exacta, tocá 📏 Medida exacta. Tocá el punto inicial para cerrar la figura; ✔ termina."
+      :"Tocá para empezar; estirá (apretado o clic-clic) y al soltar queda el ancla. Para una medida exacta, escribí el número y Enter (o 📏 Medida exacta). Tocá el punto inicial para cerrar la figura. Esc/doble-clic termina. Shift = 45°.",
     curve:"Toca INICIO y FIN: la pared sale curva. Luego arrastrá el rombo ◇ del centro para ajustar cuánto se curva (al centro = recta).",
     room:"Elegí la FORMA (▭ L T U) en la barrita de formas y arrastrá: el contorno completo sale de un solo gesto.",
     door:"ARRASTRA sobre una pared: donde presionas empieza la puerta y donde sueltas termina (medida en vivo). Clic corto = 80 cm estándar.",
@@ -3011,16 +3154,91 @@ function commitTramoPared(ev){
 // separado, así que la LONGITUD —lo único que le importa al que construye—
 // nunca caía redonda salvo en paredes horizontales o verticales.
 // Si el candado de 45° está activo, la dirección se endereza antes de medir.
-function commitTramoExacto(cm){
+// ================= TECLADO DE MEDIDA EN PANTALLA =================
+// Con el dedo no hay teclado físico ni cursor flotando: este teclado da las dos
+// cosas que faltan, el NÚMERO y la DIRECCIÓN. Escribe en la misma medidaTecleada
+// que el teclado físico, así que la vista previa verde del lienzo es la de
+// siempre, y fija con la misma commitTramoExacto: una sola calculadora. La medida
+// es AL EJE de la pared (lo mismo que hace el teclado físico al trazar).
+let mpTexto="", mpUnidad="cm", mpDir=null;     // mpDir: radianes, o null = sin elegir
+const MP_DIRS=[["←",Math.PI,"Hacia la izquierda"],["↑",-Math.PI/2,"Hacia arriba"],["→",0,"Hacia la derecha"],["↓",Math.PI/2,"Hacia abajo"]];
+function mpCm(){ const v=parseFloat(mpTexto.replace(",",".")); if(!(v>0)) return 0; return Math.round((mpUnidad==="m"?v*100:v)*10)/10; }
+function mpDirInicial(){ if(!draft||draft.type!=="wall") return 0;
+  const a=N(draft.startNode), c=draft.cursor; if(!a) return 0;
+  if(c&&Math.hypot(c.x-a.x,c.y-a.y)>=Math.min(8/scale,4)) return Math.atan2(c.y-a.y,c.x-a.x);
+  // Sin cursor (dedo): sigue la dirección de la pared anterior del mismo trazo.
+  const ult=(draft.created||[]).slice(-1)[0], w=ult&&doc.walls.find(x=>x.id===ult);
+  if(w){ const p=N(w.a), q=N(w.b); if(p&&q) return Math.atan2(q.y-p.y,q.x-p.x); }
+  return 0; }
+function mpPrevia(){ // la vista previa del lienzo apunta a la dirección elegida
+  if(!draft||draft.type!=="wall") return; const a=N(draft.startNode); if(!a) return;
+  const L=mpCm()||100; draft.cursor={x:a.x+Math.cos(mpDir)*L,y:a.y+Math.sin(mpDir)*L};
+  medidaTecleada=mpCm()?String(mpCm()):""; render(); }
+function mpPintar(){ const m=document.getElementById("medidaPad"); if(!m) return;
+  const v=m.querySelector(".mpVal"), cm=mpCm();
+  v.classList.toggle("vacio",!mpTexto);
+  v.textContent=mpTexto?mpTexto.replace(".",",")+" "+mpUnidad:"Escribí la medida";
+  m.querySelectorAll("[data-mpu]").forEach(b=>{ const on=b.dataset.mpu===mpUnidad; b.classList.toggle("on",on); b.setAttribute("aria-pressed",on?"true":"false"); });
+  m.querySelectorAll("[data-mpd]").forEach(b=>{ const on=Math.abs(Math.atan2(Math.sin(+b.dataset.mpd-mpDir),Math.cos(+b.dataset.mpd-mpDir)))<1e-6;
+    b.classList.toggle("on",on); b.setAttribute("aria-pressed",on?"true":"false"); });
+  m.querySelector(".mpOk").disabled=!cm; }
+function abrirMedidaPad(){
+  if(!(tool==="wall"&&draft&&draft.type==="wall")||document.getElementById("medidaPad")) return;
+  mpTexto=""; mpDir=mpDirInicial();
+  const m=document.createElement("div"); m.id="medidaPad"; m.setAttribute("role","dialog"); m.setAttribute("aria-label","Medida exacta de la pared");
+  const tecla=(t,extra)=>'<button type="button" data-mpk="'+t+'"'+(extra||"")+'>'+t+'</button>';
+  m.innerHTML='<div class="mpTop"><div class="mpVal vacio" aria-live="polite"></div>'+
+    '<div class="mpSeg" role="group" aria-label="Unidad"><button type="button" data-mpu="cm">cm</button><button type="button" data-mpu="m">m</button></div></div>'+
+    '<div class="mpNota">Medida de esta pared, al eje. Elegí hacia dónde va:</div>'+
+    '<div class="mpDir" role="group" aria-label="Hacia dónde va la pared">'+
+      MP_DIRS.map(d=>'<button type="button" data-mpd="'+d[1]+'" aria-label="'+d[2]+'">'+d[0]+'</button>').join("")+'</div>'+
+    '<div class="mpGrid">'+tecla("7")+tecla("8")+tecla("9")+'<button type="button" data-mpk="⌫" aria-label="Borrar un número">⌫</button>'+
+      tecla("4")+tecla("5")+tecla("6")+'<button type="button" id="mpCerrar" aria-label="Cerrar el teclado de medida">✕</button>'+
+      tecla("1")+tecla("2")+tecla("3")+'<button type="button" class="mpOk" id="mpOk">✓ Poner</button>'+
+      tecla("0",' class="mpCero"')+'<button type="button" data-mpk="," aria-label="Coma decimal">,</button></div>';
+  document.body.appendChild(m); document.body.classList.add("medida-abierta");
+  // Nada del teclado llega al lienzo: ni el down ni el up (onUp y el detector de
+  // doble toque escuchan en window).
+  m.addEventListener("pointerdown",ev=>ev.stopPropagation());
+  m.addEventListener("pointerup",ev=>ev.stopPropagation());
+  m.querySelectorAll("[data-mpk]").forEach(b=>b.onclick=()=>{ const k=b.dataset.mpk;
+    if(k==="⌫") mpTexto=mpTexto.slice(0,-1);
+    else if(k===","){ if(!mpTexto.includes("."))mpTexto+=(mpTexto?".":"0."); }
+    else if(mpTexto.replace(".","").length<7) mpTexto=(mpTexto==="0"?"":mpTexto)+k;
+    mpPintar(); mpPrevia(); });
+  m.querySelectorAll("[data-mpu]").forEach(b=>b.onclick=()=>{ mpUnidad=b.dataset.mpu; mpPintar(); mpPrevia(); });
+  m.querySelectorAll("[data-mpd]").forEach(b=>b.onclick=()=>{ mpDir=+b.dataset.mpd; mpPintar(); mpPrevia(); });
+  m.querySelector("#mpCerrar").onclick=()=>cerrarMedidaPad(true);
+  m.querySelector("#mpOk").onclick=()=>{ const cm=mpCm(); if(!cm) return;
+    if(cm>100000){ avisar("Esa medida pasa de 1 km: revisá el número."); return; }
+    medidaTecleada="";
+    if(commitTramoExacto(cm,mpDir)){ mpTexto=""; if(document.getElementById("medidaPad")){ mpPintar(); mpPrevia(); } }
+    else { mpPintar(); render(); } };
+  mpPintar(); mpPrevia(); mpDejarVerInicio(m); }
+function cerrarMedidaPad(limpiar){ const m=document.getElementById("medidaPad"); if(m) m.remove();
+  document.body.classList.remove("medida-abierta");
+  mpTexto=""; if(limpiar!==false){ medidaTecleada=""; render(); } }
+// Si el punto de arranque quedó debajo del teclado, se corre la vista para que
+// la pared que se está por poner se vea. El zoom no se toca.
+function mpDejarVerInicio(m){ if(!draft) return; const a=N(draft.startNode), r=rectUtil(); if(!a||!r) return;
+  const yPx=r.top+(a.y-vb.y)/vb.h*r.height, techo=m.getBoundingClientRect().top-40;
+  if(yPx>techo){ const meta=r.top+Math.max(80,(techo-r.top)*0.45); vb.y+=(yPx-meta)*vb.h/r.height; applyViewBox(); render(); } }
+
+// `angFijo` (radianes) lo pasa el teclado en pantalla, que elige la dirección
+// con flechas: con el dedo no hay cursor flotando que la marque.
+function commitTramoExacto(cm,angFijo){
   if(!draft||draft.type!=="wall") return false;
   const a=N(draft.startNode); if(!a) return false;
+  let ang;
+  if(typeof angFijo==="number"&&isFinite(angFijo)) ang=angFijo;
+  else {
   const c=draft.cursor;
   // Guard de "sin dirección": mismo patrón que commitTramoPared — 8px pantalla / 4cm mundo.
   const distCm=Math.hypot(c.x-a.x,c.y-a.y); const tol=Math.min(8/scale,4);
   if(distCm<tol){
     avisar("Movete hacia donde va la pared y volvé a escribir la medida."); return false; }
   const dir=applyLock(a,c,false);                  // respeta el candado de 45°
-  const ang=Math.atan2(dir.y-a.y,dir.x-a.x);
+  ang=Math.atan2(dir.y-a.y,dir.x-a.x); }
   const b={x:a.x+Math.cos(ang)*cm,y:a.y+Math.sin(ang)*cm};
   // Tolerancia de 1 cm y no la de 12 px: si el usuario escribió 1185, el extremo
   // va a 1185. Antes el ancla vecina se lo tragaba —una casa de 12 m con el
@@ -3600,18 +3818,24 @@ function renderCircuits(p){
   if(!doc.circuits.length) html+=`<p class="muted">Sin circuitos aún. Crea el primero y asigna cada toma/lámpara desde su inspector (o aquí abajo).</p>`;
   doc.circuits.forEach(c=>{
     const va=circuitLoad(c), cap=circuitCapacity(c), pct=cap?Math.round(va/cap*100):0;
-    const warn=pct>=80; const cable=circuitCableM(c);
+    const warn=pct>=80; const tn=cableTresNumeros(c), pol=polosDe(c);
     html+=`<div class="cir">
       <div class="head"><span class="dotc" style="background:${c.color}"></span>
         <input class="nm" data-cn="${c.id}" value="${c.name}" style="background:transparent;border:0;color:var(--ink);font-weight:700">
-        <button class="ghost" data-cx="${c.id}" title="Eliminar circuito" style="min-height:26px;padding:2px 7px">🗑</button></div>
-      <div class="row2">Breaker <select data-ca="${c.id}">${BREAKERS.map(b=>`<option ${b===c.amps?"selected":""}>${b}</option>`).join("")}</select> A
-        · <b>${AWG_BY_BREAKER[c.amps]||"?"}</b> AWG · ${circuitPoints(c)} pts · fase <select data-cf="${c.id}"><option ${c.fase!=="B"?"selected":""}>A</option><option ${c.fase==="B"?"selected":""}>B</option></select></div>
+        <button class="bodbtn" data-cx="${c.id}" aria-label="Eliminar ${bodEsc(c.name)}">🗑</button></div>
+      <div class="row2">Breaker ${pol}×<select data-ca="${c.id}" aria-label="Amperaje del breaker">${BREAKERS.map(b=>`<option ${b===c.amps?"selected":""}>${b}</option>`).join("")}</select> A
+        · cable <select data-ccal="${c.id}" aria-label="Calibre del cable">${CALIBRES.map(k=>`<option ${k===calibreDe(c)?"selected":""}>${k}</option>`).join("")}</select>
+        · <select data-chil="${c.id}" aria-label="Hilos del circuito">${[2,3,4].map(h=>`<option value="${h}" ${h===hilosDe(c)?"selected":""}>${h} hilos</option>`).join("")}</select>
+        · ${circuitPoints(c)} pts · fase <select data-cf="${c.id}" aria-label="Fase"><option ${c.fase!=="B"?"selected":""}>A</option><option ${c.fase==="B"?"selected":""}>B</option></select></div>
       <div class="capbar"><i style="width:${Math.min(100,pct)}%;background:${warn?"var(--danger)":c.color}"></i></div>
       <div class="meta">${va} VA de ${cap} VA (${pct}%) ${warn?`<span class="warn">· supera el 80% — divide el circuito</span>`:`<span class="okc">· OK</span>`}</div>
-      <div class="meta">Cable estimado: ${cable.toFixed(1)} m ${hasPanel?"":"(coloca el tablero)"}</div>
+      ${hasPanel?`<div class="cab3"><span><b>${tn.recorrido.toFixed(1)} m</b>recorrido</span><span><b>${tn.porHilo.toFixed(1)} m</b>por hilo</span><span><b>${tn.compra} m</b>comprar ${tn.calibre}</span></div>`
+        :`<div class="meta">Colocá el tablero para calcular el cable.</div>`}
     </div>`;
   });
+  if(hasPanel&&doc.elements.some(esElectrico)) html+=`<div class="field" style="margin:4px 0 10px"><label>Sin tubo dibujado, el cable se calcula…</label>
+    <select id="rutaCable" class="bodinp"><option value="tablero" ${settings.rutaCable!=="cadena"?"selected":""}>De cada punto hasta el tablero (más cable)</option>
+    <option value="cadena" ${settings.rutaCable==="cadena"?"selected":""}>En cadena, de un punto al siguiente</option></select></div>`;
   html+=`<button id="addCir" style="width:100%;justify-content:center">＋ Nuevo circuito</button>`;
   html+=`<button id="verUni" class="ghost" style="width:100%;justify-content:center;margin-top:6px">📜 Ver diagrama unifilar</button>`;
   html+=`<button id="verCarg" class="ghost" style="width:100%;justify-content:center;margin-top:6px">📋 Cuadro de cargas</button>`;
@@ -3626,7 +3850,7 @@ function renderCircuits(p){
   // sin asignar
   const libres=doc.elements.filter(e=>esElectrico(e)&&!e.circuitId);
   if(libres.length) html+=`<p class="muted" style="margin-top:12px">⚠ <b>${libres.length}</b> punto(s) sin circuito. <button id="asigTodo" class="ghost" style="min-height:26px;padding:2px 8px">Asignar al 1º</button></p>`;
-  html+=`<div class="disclaimer">Cargas de referencia: toma 180 VA · lámpara 100 VA (NEC). La verificación del 80% es una guía visual — <b>no sustituye el cálculo del profesional responsable</b>. El cable es ESTIMACIÓN (en escuadra hasta el tablero, como se tiende el tubo, + ${settings.cableXPuntoM} m por punto + ${settings.desperdicio}% desperdicio).</div>`;
+  html+=`<div class="disclaimer">Cargas de referencia: toma 180 VA · lámpara 100 VA (NEC). La verificación del 80% es una guía visual — <b>no sustituye el cálculo del profesional responsable</b>. El cable es ESTIMACIÓN: en escuadra ${settings.rutaCable==="cadena"?"de punto a punto":"hasta el tablero"} (o por el tubo dibujado), + ${settings.cableXPuntoM} m por punto, × los hilos del circuito, + ${settings.desperdicio}% desperdicio. Hilos y calibre son sugeridos: revisalos según el código eléctrico.</div>`;
   p.innerHTML=html;
   const ac=document.getElementById("autoCable");
   if(ac) ac.onclick=()=>{ const n=trazarCableLuces();
@@ -3644,6 +3868,9 @@ function renderCircuits(p){
   p.querySelectorAll("[data-cn]").forEach(inp=>inp.onchange=()=>{ const c=circuitOf(inp.dataset.cn); if(c){c.name=inp.value;pushHistory();render();} });
   p.querySelectorAll("[data-ca]").forEach(s=>s.onchange=()=>{ const c=circuitOf(s.dataset.ca); if(c){c.amps=+s.value;pushHistory();renderPanel();} });
   p.querySelectorAll("[data-cf]").forEach(s=>s.onchange=()=>{ const c=circuitOf(s.dataset.cf); if(c){c.fase=s.value;pushHistory();renderPanel();} });
+  p.querySelectorAll("[data-ccal]").forEach(s=>s.onchange=()=>{ const c=circuitOf(s.dataset.ccal); if(c){c.calibre=s.value;pushHistory();render();} });
+  p.querySelectorAll("[data-chil]").forEach(s=>s.onchange=()=>{ const c=circuitOf(s.dataset.chil); if(c){c.hilos=+s.value;pushHistory();render();} });
+  const rc=document.getElementById("rutaCable"); if(rc) rc.onchange=()=>{ settings.rutaCable=rc.value; doSave(); render(); };
   p.querySelectorAll("[data-cx]").forEach(b=>b.onclick=async ()=>{ const id=b.dataset.cx;
     if(await pedirConfirm("¿Eliminar el circuito?<br><small>Sus puntos quedan sin asignar (no se borran).</small>","🗑 Eliminar")){
       doc.circuits=doc.circuits.filter(c=>c.id!==id);
@@ -3745,6 +3972,15 @@ async function bodAnotarMov(itemId){
     avisar("No podés sacar "+matNum(cant)+" si solo hay "+matNum(it.cantidad)+"."); return; }
 
   const mv={tipo,itemId,cant,deUbic:it.ubicacionId};
+  // Lo que sale, sale PARA una obra: así después se sabe qué se llevó cada una.
+  if(tipo==="salida"){
+    const planos=loadIndex().slice().sort((a,b)=>(b.id===projectId)-(a.id===projectId)||(b.updated||0)-(a.updated||0));
+    const ops=planos.slice(0,12).map(p=>({k:p.id,txt:"📐 "+bodEsc(p.nombre||"Plano")+(p.id===projectId?" <small style='color:var(--faint)'>— el que está abierto</small>":"")}));
+    ops.push({k:"-",txt:"Ninguna en especial"});
+    const ob=await pedirOpcion("¿Para qué obra salió?",ops);
+    if(!ob) return;
+    if(ob!=="-"){ const p=planos.find(x=>x.id===ob); mv.obraId=ob; mv.obraNombre=(p&&p.nombre)||"Plano"; }
+  }
   if(tipo==="traslado"){
     const sitios=bodUbicPlano().filter(u=>u.id!==it.ubicacionId);
     if(!sitios.length){ avisar("Creá otro sitio primero, en 📍 Sitios."); return; }
@@ -3754,7 +3990,7 @@ async function bodAnotarMov(itemId){
   }
   if(!bodRegistrar(mv)){ avisar("No pude anotar el movimiento."); return; }
   _matSig=""; renderPanel();
-  avisar(bodMovNom(tipo)+": "+matNum(cant)+" "+it.unidad+" · "+it.nombre);
+  avisar(bodMovNom(tipo)+": "+matNum(cant)+" "+it.unidad+" · "+it.nombre+(mv.obraNombre?" → "+mv.obraNombre:""));
 }
 
 /* --------- Bodega: historial --------- */
@@ -3767,6 +4003,7 @@ function showMovimientos(){
       const it=bodega.items.find(x=>x.id===mv.itemId);
       const detalle = mv.tipo==="traslado"
         ? bodRuta(mv.deUbic)+" → "+bodRuta(mv.aUbic)
+        : mv.obraNombre ? bodRuta(mv.deUbic)+" → obra «"+mv.obraNombre+"»"
         : (mv.nota||bodRuta(mv.deUbic));
       return `<div class="bodrow${mv.revertido?" revertido":""}">`+
         `<span class="bodnom"><b>${bodMovNom(mv.tipo)} · ${bodEsc(it?it.nombre:"(borrado)")}</b>`+
@@ -3807,7 +4044,8 @@ function bodEsc(s){ return String(s==null?"":s)
 // Un ítem entra si el texto buscado aparece en su nombre, su código o el
 // camino de su sitio: buscar "buseta" tiene que sacar todo lo que va en la buseta.
 function bodCoincide(it,q){ if(!q) return true;
-  return bodNorm(it.nombre+" "+(it.codigo||"")+" "+bodRuta(it.ubicacionId)).includes(q); }
+  const a=it.activo||{};
+  return bodNorm(it.nombre+" "+(it.codigo||"")+" "+bodRuta(it.ubicacionId)+" "+(a.serie||"")+" "+(a.responsable||"")).includes(q); }
 
 function bodItemsVisibles(){ const q=bodNorm(bodBusca);
   return bodega.items.filter(it=>
@@ -3824,7 +4062,9 @@ function bodFilaHTML(it){
     `<button class="bodnom bodabrir" data-bmov="${bodEsc(it.id)}" `+
       `aria-label="Anotar que entró, salió o se movió ${bodEsc(it.nombre)}">`+
       `<b>${bodEsc(it.nombre)}</b>`+
-      `<small>${bodEsc(bodRuta(it.ubicacionId))}${it.codigo?" · "+bodEsc(it.codigo):""}</small></button>`+
+      `<small>${bodEsc(bodRuta(it.ubicacionId))}${it.codigo?" · "+bodEsc(it.codigo):""}</small>`+
+      (bodActivoTxt(it)?`<small class="bodact${it.activo&&it.activo.estado&&it.activo.estado!=="buena"?" alerta":""}">${bodEsc(bodActivoTxt(it))}</small>`:"")+
+      `</button>`+
     `<span class="bodcant${bajo?" bajo":""}">${(+it.cantidad||0)}<small> ${bodEsc(it.unidad||"u")}</small>`+
       `${bajo?`<em title="Quedan ${(+it.cantidad||0)} y tu mínimo es ${(+it.minimo||0)}">bajo mínimo</em>`:""}</span>`+
     `<button class="bodbtn" data-bedit="${bodEsc(it.id)}" aria-label="Editar ${bodEsc(it.nombre)}">✏️</button>`+
@@ -3918,6 +4158,17 @@ function bodEditar(id){
       `min="0" step="any" value="${+v.minimo||0}" placeholder="0 = no avisar">`)+
     field("Código o marca (opcional)",`<input id="bfCod" class="bodinp" value="${bodEsc(v.codigo||"")}">`)+
     field("Nota (opcional)",`<input id="bfNota" class="bodinp" value="${bodEsc(v.nota||"")}">`)+
+    `<div id="bfActivo" style="${v.categoria==="herramienta"?"":"display:none"}">`+
+      `<div class="kdt" style="margin:12px 0 4px">🔧 Datos de la herramienta</div>`+
+      field("¿Quién la tiene?",`<input id="bfResp" class="bodinp" value="${bodEsc((v.activo||{}).responsable||"")}" placeholder="Nombre del que la anda">`)+
+      field("¿Cómo está?",`<select id="bfEst" class="bodinp">`+BOD_ESTADOS.map(([k,n])=>
+        `<option value="${k}" ${k===((v.activo||{}).estado||"buena")?"selected":""}>${n}</option>`).join("")+`</select>`)+
+      field("Número de serie (opcional)",`<input id="bfSerie" class="bodinp" value="${bodEsc((v.activo||{}).serie||"")}">`)+
+      `<div class="bodpar">`+
+        field("Lo que costó (opcional)",`<input id="bfValor" class="bodinp" type="number" inputmode="decimal" min="0" step="any" value="${(v.activo||{}).valor||""}" placeholder="${bodEsc(settings.moneda||"₡")}">`)+
+        field("Garantía hasta (opcional)",`<input id="bfGar" class="bodinp" type="date" value="${bodEsc((v.activo||{}).garantia||"")}">`)+
+      `</div>`+
+    `</div>`+
     `</div>`+
     `<div class="row" style="margin-top:12px">`+
       `<button id="bfOk" style="flex:1;justify-content:center;background:var(--blue);border-color:var(--blue);color:#fff">Guardar</button>`+
@@ -3926,6 +4177,7 @@ function bodEditar(id){
   );
   const cerrar=()=>m.remove();
   const nom=m.querySelector("#bfNom"); setTimeout(()=>{ nom.focus(); nom.select(); },30);
+  m.querySelector("#bfCat").onchange=function(){ m.querySelector("#bfActivo").style.display=this.value==="herramienta"?"":"none"; };
   m.onclick=ev=>{ if(ev.target===m) cerrar(); };
   m.querySelector("#bfNo").onclick=cerrar;
   m.querySelector("#bfOk").onclick=()=>{
@@ -3939,6 +4191,14 @@ function bodEditar(id){
       minimo:Math.max(0,+m.querySelector("#bfMin").value||0),
       codigo:m.querySelector("#bfCod").value.trim(),
       nota:m.querySelector("#bfNota").value.trim() };
+    if(datos.categoria==="herramienta"){
+      const a={ responsable:m.querySelector("#bfResp").value.trim(), estado:m.querySelector("#bfEst").value,
+        serie:m.querySelector("#bfSerie").value.trim(), garantia:m.querySelector("#bfGar").value };
+      const val=+m.querySelector("#bfValor").value; if(val>0) a.valor=val;
+      Object.keys(a).forEach(k=>{ if(a[k]==="") delete a[k]; });
+      const soloSirve=Object.keys(a).length===1&&a.estado==="buena";   // nada que contar más allá de «sirve»
+      datos.activo=Object.keys(a).length&&!soloSirve?a:undefined;
+    } else datos.activo=undefined;   // dejó de ser herramienta: sus datos de activo no aplican
     if(nuevo){ bodega.items.push(Object.assign({id:bid("bit")},datos)); }
     else {
       const antesCant=+it.cantidad||0, antesUb=it.ubicacionId;
@@ -4069,7 +4329,7 @@ function bodEnlazar(clave,itemId){
 /** Cruce completo: por cada artículo del plano, cuánto hay y cuánto falta. */
 function bodCruce(){
   const {cub,grupos,claves}=matGrupos();
-  const filas=cub.articulos.map(a=>{
+  const filas=cub.articulos.concat(cub.piezas||[]).map(a=>{
     const m=bodItemDe(a);
     const grupo=m?bodGrupoDe(m.it):null;
     const tengo=grupo?grupo.reduce((t,x)=>t+(+x.cantidad||0),0):null;
@@ -4181,7 +4441,8 @@ function renderMateriales(p){
   // esta lista cambia aunque el plano no se haya tocado.
   const sigBod=bodega.items.map(i=>i.id+":"+i.cantidad+":"+i.unidad).join(",")+
     "|"+JSON.stringify(bodega.enlaces||{});
-  const sig=JSON.stringify(cub.articulos)+"|"+JSON.stringify(T)+"|"+sigBod;
+  const piezas=cub.piezas||[];
+  const sig=JSON.stringify(cub.articulos)+"|"+JSON.stringify(piezas)+"|"+JSON.stringify(T)+"|"+sigBod;
   if(sig===_matSig && p.querySelector("#matLista")) return;
   _matSig=sig;
 
@@ -4193,7 +4454,7 @@ function renderMateriales(p){
   const resumen = !cub.articulos.length ? ""
     : !hayBodega
       ? `<div class="matpuente vacio">Cargá lo que tenés en <b>🧰 Bodega</b> y acá te digo qué falta comprar.</div>`
-      : `<div class="matpuente">De las <b>${cub.articulos.length}</b> cosas que ocupás, `+
+      : `<div class="matpuente">De las <b>${cub.articulos.length+piezas.length}</b> cosas que ocupás, `+
         `<b>${cubiertos}</b> ya las tenés en bodega.`+
         `<button id="matCompras" class="bodchip" style="margin-top:8px;width:100%">🛒 Ver lista de compras</button></div>`;
 
@@ -4212,16 +4473,18 @@ function renderMateriales(p){
       `<span class="bodcant">${matNum(a.quantity)}<small> ${bodEsc(a.unit)}</small></span>`+
       (hayBodega?`<button class="bodbtn" data-menl="${bodEsc(a.key)}" `+
         `aria-label="Elegir qué cosa de mi bodega es ${bodEsc(a.name)}">🧰</button>`:"")+
+      (puedeVerse(a)?`<button class="bodbtn" data-mver="${bodEsc(a.key)}" `+
+        `aria-label="Ver en el plano de dónde sale ${bodEsc(a.name)}">👁</button>`:"")+
     `</div>`;
   };
 
   p.innerHTML=
     `<div class="kdt sec" style="margin-bottom:6px">Lo que se ocupa</div>`+
     `<div class="muted" style="margin-bottom:10px">Se va sumando solo mientras dibujás. `+
-      `Los metros salen del trazado real, no de un cálculo a ojo.</div>`+
+      `Los metros salen del trazado: del tubo que dibujés o, si no hay, de un recorrido en escuadra hasta el tablero.</div>`+
     `<div class="matstats">`+
       `<div class="matstat"><b>${T.puntos}</b><span>puntos</span></div>`+
-      `<div class="matstat"><b>${matNum(T.cableM)}</b><span>m de cable</span></div>`+
+      `<div class="matstat"><b>${matNum(T.cableM)}</b><span>m de recorrido</span></div>`+
       `<div class="matstat"><b>${matNum(T.tuboM)}</b><span>m de tubo</span></div>`+
     `</div>`+
     resumen+
@@ -4231,12 +4494,115 @@ function renderMateriales(p){
             grupos[k].map(filaHTML).join("")).join("")
         : `<div class="bodvacio">Todavía no hay nada que contar.<br>`+
           `<small>Poné una toma o una lámpara en el plano y la vas a ver aparecer acá.</small></div>`)+
-    `</div>`;
+      (piezas.length
+        ? `<div class="matgrupo">Lo que va con cada punto</div>`+
+          `<div class="muted" style="margin:-2px 0 6px">Cajas y placas que piden los puntos del plano.</div>`+
+          piezas.map(filaHTML).join("")
+        : "")+
+    `</div>`+
+    `<button id="matEns" class="bodchip" style="margin-top:12px;width:100%">✏️ Qué lleva cada punto</button>`;
 
   const bc=document.getElementById("matCompras"); if(bc) bc.onclick=()=>showCompras();
+  const be=document.getElementById("matEns"); if(be) be.onclick=()=>editarEnsambles();
+  p.querySelectorAll("[data-mver]").forEach(b=>b.onclick=()=>verEnPlano(b.dataset.mver));
   p.querySelectorAll("[data-menl]").forEach(b=>b.onclick=()=>{
-    const a=cub.articulos.find(x=>x.key===b.dataset.menl);
+    const a=cub.articulos.concat(piezas).find(x=>x.key===b.dataset.menl);
     if(a) bodElegirEnlace(a.key,a.name); });
+}
+/* --------- Trazabilidad: de un renglón de la lista a los puntos del plano ---------
+   Patrón Bluebeam: cada cantidad se puede seguir hasta lo dibujado que la produce.
+   Navegar no toca el historial: elegir no es editar. */
+function seleccionDeArticulo(key){
+  if(key&&key.indexOf("pz:")===0){
+    const f=explotarPiezas(doc.elements,settings.ensambles).find(x=>x.key===key);
+    return f?[...new Set(f.ids)].map(id=>({type:"element",id})):[]; }
+  if(key==="tubo") return (doc.routes||[]).map(r=>({type:"route",id:r.id}));
+  if(ELEMENTS[key]) return doc.elements.filter(e=>e.type===key).map(e=>({type:"element",id:e.id}));
+  return [];
+}
+function puedeVerse(a){ return seleccionDeArticulo(a.key).length>0; }
+function verEnPlano(key){
+  let sel=seleccionDeArticulo(key); if(!sel.length) return;
+  const objDe=s=>s.type==="route"?doc.routes.find(r=>r.id===s.id):doc.elements.find(e=>e.id===s.id);
+  // Si nada está en la planta que se ve, se va a la planta del primero.
+  if(!sel.some(s=>enPiso(objDe(s)||{}))){
+    const o=objDe(sel[0]); if(o&&o.piso&&o.piso!==doc.pisoActivo){ doc.pisoActivo=o.piso; renderFloorbar(); } }
+  sel=sel.filter(s=>enPiso(objDe(s)||{}));
+  const pts=[]; sel.forEach(s=>{ const o=objDe(s); if(!o) return;
+    if(s.type==="route") (o.pts||[]).forEach(q=>pts.push(q)); else pts.push({x:o.x,y:o.y}); });
+  if(pts.length){
+    const xs=pts.map(q=>q.x), ys=pts.map(q=>q.y);
+    const cx=(Math.min(...xs)+Math.max(...xs))/2, cy=(Math.min(...ys)+Math.max(...ys))/2;
+    const fuera=cx<vb.x||cx>vb.x+vb.w||cy<vb.y||cy>vb.y+vb.h;
+    if(fuera){ vb.x=cx-vb.w/2; vb.y=cy-vb.h/2; applyViewBox(); } }
+  setSel(sel);
+  if(esMovil()) setSheet("peek");
+  render();
+  avisar(sel.length===1?"Marcado en el plano.":sel.length+" marcados en el plano.");
+}
+
+/* --------- Editor de ensambles: qué lleva cada punto --------- */
+function editarEnsambles(){
+  let borr=clone(settings.ensambles||{});
+  let todos=false;
+  const usados=[...new Set(doc.elements.filter(e=>esElectrico(e)||e.type==="panel").map(e=>e.type))];
+  const tiposVisibles=()=>{ const base=Object.keys(ELEMENTS).filter(t=>!elInfo(t).decorativo);
+    return todos?base:base.filter(t=>usados.includes(t)); };
+  const filaPieza=(t,i,pz)=>`<div class="bodrow" style="gap:6px">`+
+    `<input class="bodinp" data-pn="${t}|${i}" value="${bodEsc(pz.nombre)}" aria-label="Pieza" style="flex:2">`+
+    `<input class="bodinp" data-pc="${t}|${i}" type="number" inputmode="decimal" min="0" step="any" `+
+      `value="${+pz.cant||0}" aria-label="Cuántas por punto" style="flex:none;width:72px">`+
+    `<button class="bodbtn" data-px="${t}|${i}" aria-label="Quitar ${bodEsc(pz.nombre)}">🗑</button></div>`;
+  const pintar=()=>{ const ts=tiposVisibles();
+    return (ts.length?ts.map(t=>{ const l=Array.isArray(borr[t])?borr[t]:[];
+      return `<div class="matgrupo">${bodEsc(elInfo(t).icon+" "+elInfo(t).name)}</div>`+
+        (l.length?l.map((pz,i)=>filaPieza(t,i,pz)).join(""):`<div class="muted" style="margin:4px 0">Sin piezas extra.</div>`)+
+        `<button class="bodchip" data-padd="${t}" style="margin:4px 0 8px">➕ Agregar pieza</button>`; }).join("")
+      :`<div class="bodvacio">Todavía no hay puntos en el plano.<br><small>Tocá «Ver todos» para preparar los de siempre.</small></div>`); };
+  const m=uiModal(
+    `<div class="kdt" style="margin-bottom:6px">✏️ Qué lleva cada punto</div>`+
+    `<div class="muted" style="margin-bottom:8px">Lo que comprás para instalar cada punto, además del aparato. `+
+      `El número es cuántas van por punto (0.5 = una cada dos). Vale para todas tus obras.</div>`+
+    `<div class="bodform" id="ensLista">${pintar()}</div>`+
+    `<div class="row" style="margin-top:10px;gap:8px">`+
+      `<button id="ensTodos" class="ghost" style="flex:1;justify-content:center">Ver todos</button>`+
+      `<button id="ensFab" class="ghost" style="flex:1;justify-content:center">Lo sugerido</button></div>`+
+    `<div class="row" style="margin-top:8px">`+
+      `<button id="ensOk" style="flex:1;justify-content:center;background:var(--blue);border-color:var(--blue);color:#fff">Guardar</button>`+
+      `<button id="ensNo" class="ghost" style="flex:1;justify-content:center">Cancelar</button></div>`);
+  const lista=m.querySelector("#ensLista");
+  // Lo escrito en los campos se lee ANTES de repintar: si no, agregar una pieza
+  // borraba lo que el usuario acababa de teclear en otra.
+  const leer=()=>{ lista.querySelectorAll("[data-pn]").forEach(inp=>{ const [t,i]=inp.dataset.pn.split("|");
+      if(borr[t]&&borr[t][i]) borr[t][i].nombre=inp.value; });
+    lista.querySelectorAll("[data-pc]").forEach(inp=>{ const [t,i]=inp.dataset.pc.split("|");
+      if(borr[t]&&borr[t][i]) borr[t][i].cant=Math.max(0,+inp.value||0); }); };
+  const enlazar=()=>{
+    lista.querySelectorAll("[data-px]").forEach(b=>b.onclick=()=>{ leer(); const [t,i]=b.dataset.px.split("|");
+      borr[t].splice(+i,1); lista.innerHTML=pintar(); enlazar(); });
+    lista.querySelectorAll("[data-padd]").forEach(b=>b.onclick=()=>{ leer(); const t=b.dataset.padd;
+      (borr[t]=Array.isArray(borr[t])?borr[t]:[]).push({nombre:"",unidad:"u",cant:1});
+      lista.innerHTML=pintar(); enlazar();
+      const ins=lista.querySelectorAll(`[data-pn^="${t}|"]`); const ult=ins[ins.length-1];
+      if(ult){ ult.focus(); ult.scrollIntoView({block:"nearest"}); } }); };
+  enlazar();
+  m.querySelector("#ensTodos").onclick=()=>{ leer(); todos=!todos;
+    m.querySelector("#ensTodos").textContent=todos?"Solo los del plano":"Ver todos";
+    lista.innerHTML=pintar(); enlazar(); };
+  m.querySelector("#ensFab").onclick=async()=>{ leer();
+    const fab=ensamblesDeFabrica(); Object.keys(fab).forEach(t=>{ borr[t]=fab[t]; });
+    lista.innerHTML=pintar(); enlazar(); };
+  const cerrar=()=>m.remove();
+  m.querySelector("#ensNo").onclick=cerrar;
+  m.onclick=ev=>{ if(ev.target===m) cerrar(); };
+  m.querySelector("#ensOk").onclick=()=>{ leer();
+    // Una pieza sin nombre no se guarda: sería un renglón fantasma en la lista.
+    Object.keys(borr).forEach(t=>{ if(Array.isArray(borr[t]))
+      borr[t]=borr[t].filter(pz=>String(pz.nombre||"").trim()).map(pz=>({nombre:String(pz.nombre).trim(),
+        unidad:pz.unidad==="m"?"m":"u",cant:Math.max(0,+pz.cant||0)})); });
+    settings.ensambles=borr; settings.ensamblesSembrados=true;
+    // Se guarda de una vez: es configuración y no puede esperar al autoguardado.
+    doSave(); cerrar(); _matSig=""; renderPanel(); avisar("Listo: la lista ya usa lo nuevo."); };
 }
 function renderLayers(p){ const L=[["structure","🧱 Estructura (paredes)"],["openings","🚪 Puertas y ventanas"],
     ["electrical","⚡ Elementos eléctricos"],["labels","🔖 Etiquetas, cotas y texto"],["fondo","🖼 Fondo de calco"]];
@@ -4683,7 +5049,7 @@ function showProjects(){ doSave();
     <button id="pNew" style="width:100%;justify-content:center;margin-top:12px">＋ Nuevo proyecto en blanco</button>
     <button id="pTpl" class="ghost" style="width:100%;justify-content:center;margin-top:6px">🏠 Nuevo desde plantilla: casa 2 dormitorios</button>
     <button id="pClose" class="ghost" style="width:100%;justify-content:center;margin-top:6px">Cerrar</button>
-    <div class="disclaimer">⚠ Tus planos se guardan solo en ESTE aparato. Si lo perdés, lo cambiás o borrás los datos del navegador, se van con él. Para llevártelos: ⇩ Exportar → «💾 Respaldo completo», que incluye las fotos.</div>
+    <div class="disclaimer">⚠ Tus planos se guardan solo en ESTE aparato. Si lo perdés, lo cambiás o borrás los datos del navegador, se van con él. Para llevártelos: ⇩ Exportar → «🗄 Respaldo de TODO», que incluye las fotos.</div>
   </div>`;
   document.body.appendChild(m);
   m.querySelector("#pClose").onclick=()=>m.remove();
@@ -5065,12 +5431,13 @@ document.getElementById("exportBtn").onclick=exportMenu;
 async function exportMenu(){
   const pick=await pedirOpcion("⇩ Exportar",[
     {k:"pdf",txt:"📄 Para entregarle al cliente (PDF con membrete)"},
-    {k:"json",txt:"💾 Respaldo completo, para no perder el plano (incluye las fotos)"},
+    {k:"todo",txt:"🗄 Respaldo de TODO: todos los planos, bodega, ajustes y fotos"},
+    {k:"json",txt:"💾 Solo este plano, para pasarlo a otro aparato (con sus fotos)"},
     {k:"png",txt:"🖼 Una foto del plano, para WhatsApp (PNG)"},
     {k:"svg",txt:"🖼 Imagen que no se pixelea al agrandar (SVG)"},
     {k:"dxf",txt:"📐 Para abrirlo en AutoCAD o LibreCAD (DXF)"}]);
   if(!pick) return;
-  if(pick==="pdf") printPDF(); else if(pick==="json") exportJSON();
+  if(pick==="pdf") printPDF(); else if(pick==="json") exportJSON(); else if(pick==="todo") respaldoTotal();
   else if(pick==="svg") exportSVG(); else if(pick==="png") exportPNG();
   else if(pick==="dxf") exportDXF(); }
 function exportDXF(){
@@ -5120,6 +5487,76 @@ async function exportJSON(){ setSave("busy","Empacando…");
   download((projectName||"plano").replace(/[^\wáéíóúñÁÉÍÓÚÑ -]/g,"")+".planelectrico.json","application/json",
     JSON.stringify({doc:d,settings,name:projectName},null,2));
   setSave("","Guardado"); }
+// ================= RESPALDO DE TODO =================
+// Mismo archivo que «Ajustes → Respaldo» de ElectroPlan Pro (formato v3): cada
+// llave del navegador que es de la app viaja tal cual, más las fotos. Las reglas
+// viven duplicadas en integrar-react/src/respaldo/respaldo.ts — si cambia una,
+// cambia la otra (tests/respaldo.mjs las cruza).
+const RESP_FORMATO="electroplan-respaldo", RESP_VERSION=3;
+const RESP_LOCALES=["planelectrico:cur","electroplan_obra_abierta","electroplan_aviso_lienzo","electroplan_ultimo_respaldo"];
+function respEsRespaldable(k){ return (k.indexOf("planelectrico:")===0||k.indexOf("electroplan_")===0)&&RESP_LOCALES.indexOf(k)<0; }
+function respLeerAlmacen(){ const o={}; try{ for(let i=0;i<localStorage.length;i++){ const k=localStorage.key(i); if(k)o[k]=localStorage.getItem(k)||""; } }catch(e){} return o; }
+function respFotos(){ return new Promise(r=>{ if(!idb)return r([]);
+  try{ const out=[]; const rq=idb.transaction("fotos").objectStore("fotos").openCursor();
+    rq.onsuccess=()=>{ const c=rq.result; if(!c)return r(out); if(c.value instanceof Blob)out.push([String(c.key),c.value]); c.continue(); };
+    rq.onerror=()=>r(out); }catch(e){ r([]); } }); }
+function respIdsFotos(){ return new Promise(r=>{ if(!idb)return r([]);
+  try{ const rq=idb.transaction("fotos").objectStore("fotos").getAllKeys();
+    rq.onsuccess=()=>r(rq.result.map(String)); rq.onerror=()=>r([]); }catch(e){ r([]); } }); }
+function respNombre(){ const d=new Date(), z=n=>String(n).padStart(2,"0");
+  return "ElectroPlan_Respaldo_"+d.getFullYear()+"-"+z(d.getMonth()+1)+"-"+z(d.getDate())+"_"+z(d.getHours())+z(d.getMinutes())+".json"; }
+async function respaldoTotal(){
+  if(saveTimer){ clearTimeout(saveTimer); saveTimer=null; } doSave();
+  setSave("busy","Empacando…");
+  const alm=respLeerAlmacen(), claves={};
+  Object.keys(alm).sort().forEach(k=>{ if(respEsRespaldable(k))claves[k]=alm[k]; });
+  const fotos=[];
+  for(const [id,b] of await respFotos()){ const du=await blobToDataURL(b); if(du)fotos.push({id,dataURL:du}); }
+  download(respNombre(),"application/json",JSON.stringify({formato:RESP_FORMATO,version:RESP_VERSION,
+    exportDate:new Date().toISOString(),origen:"plano",claves,fotos}));
+  lsSet("electroplan_ultimo_respaldo",new Date().toISOString());
+  setSave("","Guardado");
+  const planos=Object.keys(claves).filter(k=>k.indexOf("planelectrico:proj:")===0).length;
+  avisar("🗄 Respaldo descargado: "+planos+(planos===1?" plano":" planos")+" y "+fotos.length+(fotos.length===1?" foto":" fotos")+". Guardalo fuera de este aparato (correo, Drive o una memoria)."); }
+/** Lee v3 o v2 y devuelve {claves,fotos,fecha}; null si no es un respaldo. */
+function respLeer(s){ if(!s||typeof s!=="object"||s.formato!==RESP_FORMATO) return null;
+  const claves={}, put=(k,v)=>{ if(typeof v==="string"&&respEsRespaldable(k))claves[k]=v; };
+  if(s.version>=3){ if(s.version>RESP_VERSION||!s.claves||typeof s.claves!=="object") return s.version>RESP_VERSION?"futuro":null;
+    Object.keys(s.claves).forEach(k=>put(k,s.claves[k])); }
+  else { const o=x=>x&&typeof x==="object"&&!Array.isArray(x);
+    if(Array.isArray(s.projects))claves.electroplan_projects=JSON.stringify(s.projects);
+    if(o(s.settings))claves.electroplan_settings=JSON.stringify(s.settings);
+    if(o(s.user))claves.electroplan_user=JSON.stringify(s.user);
+    if(o(s.preciosBase))claves.electroplan_precios_base=JSON.stringify(s.preciosBase);
+    if(o(s.planos))Object.keys(s.planos).forEach(k=>put(k,s.planos[k])); }
+  const fotos=(Array.isArray(s.fotos)?s.fotos:[]).filter(f=>f&&typeof f.id==="string"&&f.id&&typeof f.dataURL==="string"&&f.dataURL.indexOf("data:")===0);
+  return {claves,fotos,fecha:String(s.exportDate||"")}; }
+/** «Agregar lo que falta»: nunca pisa nada. Las dos listas se unen por id. */
+async function restaurarRespaldo(s){
+  const r=respLeer(s);
+  if(r==="futuro"){ avisar("Ese respaldo lo sacó una versión más nueva de la app. Actualizá y volvé a intentar."); return; }
+  if(!r){ avisar("Ese archivo no es un respaldo de ElectroPlan."); return; }
+  const planos=Object.keys(r.claves).filter(k=>k.indexOf("planelectrico:proj:")===0).length;
+  const f=new Date(r.fecha), fecha=isNaN(f)?"fecha desconocida":f.toLocaleString("es-CR",{day:"numeric",month:"long",year:"numeric",hour:"2-digit",minute:"2-digit"});
+  if(!await pedirConfirm("<b>Este respaldo es del "+bodEsc(fecha)+".</b><br>Trae "+planos+(planos===1?" plano":" planos")+" y "+r.fotos.length+(r.fotos.length===1?" foto":" fotos")+
+    ".<br><small>Se agrega lo que falta. No se borra ni se cambia nada de lo que ya tenés en este aparato.</small>","🗄 Agregar lo que falta")) return;
+  if(saveTimer){ clearTimeout(saveTimer); saveTimer=null; } doSave();
+  const actual=respLeerAlmacen(); let nuevosPlanos=0, fallidas=0;
+  const unir=(a,b)=>{ let x=[],y=[]; try{ x=JSON.parse(a||"[]"); }catch(e){} try{ y=JSON.parse(b||"[]"); }catch(e){}
+    if(!Array.isArray(x))x=[]; if(!Array.isArray(y))return null;
+    const ids=new Set(x.map(o=>o&&String(o.id))); const faltan=y.filter(o=>o&&o.id!=null&&!ids.has(String(o.id)));
+    return faltan.length?JSON.stringify(x.concat(faltan)):null; };
+  Object.keys(r.claves).forEach(k=>{ let v=r.claves[k];
+    if(k==="planelectrico:idx"||k==="electroplan_projects"){ v=unir(actual[k],v); if(v==null)return; }
+    else if(k in actual) return;
+    if(!lsSet(k,v)){ fallidas++; return; }
+    if(k.indexOf("planelectrico:proj:")===0)nuevosPlanos++; });
+  const ya=new Set(await respIdsFotos()); let nuevasFotos=0;
+  for(const ft of r.fotos){ if(ya.has(ft.id))continue; const b=dataURLToBlob(ft.dataURL); if(b&&await fotoPut(ft.id,b))nuevasFotos++; }
+  avisar("✓ Listo: entraron "+nuevosPlanos+(nuevosPlanos===1?" plano nuevo":" planos nuevos")+" y "+nuevasFotos+(nuevasFotos===1?" foto nueva":" fotos nuevas")+"."+
+    (fallidas?" OJO: "+fallidas+" partes no cupieron en este aparato por falta de espacio.":"")+" Recargando…");
+  // La lista de planos y la bodega viven en memoria: sin recargar, el próximo guardado las pisa.
+  setTimeout(()=>location.reload(),1800); }
 // Puente hacia ElectroPlan Pro (app React): solo cubicación, sin plano.
 // La mano de obra viaja aparte (labor) — nunca como material, para no duplicar IVA en la otra app.
 // Cubicación v2 — SOLO cantidades. Los precios viven en ElectroPlan Pro.
@@ -5133,9 +5570,16 @@ function cubicacionV2(){
       category: t==="panel"?"Tableros":"Dispositivos",
       quantity:T.elemCount[t], unit:"c/u" });
   });
-  if(T.cableTotal>0 && !T.cableReemplazado) arts.push({ key:"cable",
-    name:"Cable estimado por circuitos", category:"Cables",
-    quantity:+T.cableTotal.toFixed(1), unit:"m" });
+  // Cable de COMPRA por calibre: hilos × (recorrido + holgura) × desperdicio. La
+  // clave del #12 sigue siendo "cable" (la que ya tiene precio en la app).
+  if(T.cableTotal>0 && !T.cableReemplazado){ const pc=cablePorCalibre();
+    CALIBRES.filter(cal=>pc[cal]>0).forEach(cal=>arts.push({ key:claveCable(cal),
+      name:"Cable THHN "+cal+" (todos los hilos)", category:"Cables", quantity:pc[cal], unit:"m" })); }
+  // Un breaker por circuito, según su amperaje y si es de 120 o de 240 V.
+  const brk={}; doc.circuits.forEach(c=>{ const pol=polosDe(c);
+    const k=(pol===2?"breaker2_":"breaker_")+c.amps;
+    (brk[k]=brk[k]||{ key:k, name:"Breaker "+pol+"×"+c.amps+" A", category:"Tableros", quantity:0, unit:"c/u" }).quantity++; });
+  Object.keys(brk).sort().forEach(k=>arts.push(brk[k]));
   if(T.tubM>0 && !T.tuboReemplazado) arts.push({ key:"tubo",
     name:"Tubería conduit dibujada", category:"Conduits",
     quantity:+T.tubM.toFixed(1), unit:"m" });
@@ -5149,7 +5593,11 @@ function cubicacionV2(){
       moneda:settings.moneda, pisos:(doc.pisos||[]).length||1 },
     articulos:arts,
     magnitudes:{ cableM:+T.cableTotal.toFixed(2), tuboM:+T.tubM.toFixed(2), puntos:T.puntos },
-    conteo:{ paredes:doc.walls.length, elementos:doc.elements.length } };
+    conteo:{ paredes:doc.walls.length, elementos:doc.elements.length },
+    // Accesorios de los ensambles (cajas, placas…). Campo aparte a propósito: la app
+    // los ignora y sigue cobrando por tipo de punto, así nada se cobra dos veces.
+    piezas:explotarPiezas(doc.elements,settings.ensambles).map(f=>({key:f.key,name:f.name,
+      category:f.category,quantity:f.quantity,unit:f.unit})) };
 }
 function decorarPlano(sc,vb){
   const u=vb.w/100; const g=el("g",{});
@@ -5234,10 +5682,11 @@ function exportPNG(){ const s=svgString(); const img=new Image();
     ctx.fillRect(0,0,c.width,c.height); ctx.drawImage(img,0,0,c.width,c.height);
     c.toBlob(b=>{ const u=URL.createObjectURL(b); const a=document.createElement("a");
       a.href=u;a.download="plano.png";a.click(); URL.revokeObjectURL(u); }); };
-  img.onerror=()=>avisar("No se pudo crear la imagen. Probá con «🖼 Imagen que no se pixelea» o «💾 Respaldo completo», en el mismo menú de ⇩ Exportar."); img.src=url; }
+  img.onerror=()=>avisar("No se pudo crear la imagen. Probá con «🖼 Imagen que no se pixelea» o «🗄 Respaldo de TODO», en el mismo menú de ⇩ Exportar."); img.src=url; }
 document.getElementById("importBtn").onclick=()=>document.getElementById("fileInput").click();
 document.getElementById("fileInput").onchange=e=>{ const f=e.target.files[0]; if(!f)return;
   const rd=new FileReader(); rd.onload=async ()=>{ try{ const s=JSON.parse(rd.result);
+    if(s&&s.formato===RESP_FORMATO){ restaurarRespaldo(s); return; }
     const d=normalizeDoc(s.doc?s.doc:s); settings=Object.assign(settings,s.settings||{}); normalizeSettings(s.settings);
     doSave(); createProject(s.name||f.name.replace(/\.(planelectrico\.)?json$/i,"")||"Importado", d);
     for(const ph of (doc.photos||[])){ if(ph.dataInline&&!ph.fotoId){ const b=dataURLToBlob(ph.dataInline);
@@ -5245,7 +5694,7 @@ document.getElementById("fileInput").onchange=e=>{ const f=e.target.files[0]; if
     if(doc.fondo&&doc.fondo.dataInline&&!doc.fondo.fotoId){ const b=dataURLToBlob(doc.fondo.dataInline);
       if(b){ const fid=uid("f")+Date.now().toString(36); if(await fotoPut(fid,b)){ doc.fondo.fotoId=fid; delete doc.fondo.dataInline; } } }
     fondoURL=null;
-    scheduleSave(); render(); }catch(err){ avisar("Ese archivo no es un respaldo de PlanEléctrico Pro. Buscá el que sacaste con ⇩ Exportar → «Respaldo completo»."); } }; rd.readAsText(f);
+    scheduleSave(); render(); }catch(err){ avisar("Ese archivo no es un respaldo de PlanEléctrico Pro. Buscá el que sacaste con ⇩ Exportar → «Respaldo de TODO»."); } }; rd.readAsText(f);
   e.target.value=""; };
 document.getElementById("blkBtn").onclick=()=>showBloques();
 document.getElementById("fondoBtn").onclick=async ()=>{
@@ -5322,6 +5771,16 @@ window.addEventListener("keydown",e=>{
   // Va ANTES de Escape/Enter/Backspace porque mientras se escribe una medida
   // esas tres teclas significan otra cosa: borrar un dígito, fijar el tramo, o
   // cancelar solo el número sin perder el trazo.
+  // Con el teclado de pantalla abierto, el físico escribe EN él (una sola medida a la vista).
+  const mpad=document.getElementById("medidaPad");
+  if(mpad&&!e.ctrlKey&&!e.metaKey&&!e.altKey){
+    const pulsar=sel=>{ const b=mpad.querySelector(sel); if(b){ e.preventDefault(); b.click(); return true; } return false; };
+    if(/^[0-9]$/.test(e.key)&&pulsar('[data-mpk="'+e.key+'"]')) return;
+    if((e.key==="."||e.key===",")&&pulsar('[data-mpk=","]')) return;
+    if(e.key==="Backspace"&&pulsar('[data-mpk="⌫"]')) return;
+    if(e.key==="Enter"&&pulsar("#mpOk")) return;
+    if(e.key==="Escape"&&pulsar("#mpCerrar")) return;
+  }
   if(draft&&draft.type==="wall"&&!e.ctrlKey&&!e.metaKey&&!e.altKey){
     if(/^[0-9]$/.test(e.key)||((e.key==="."||e.key===",")&&!medidaTecleada.includes("."))){
       e.preventDefault(); medidaTecleada+=(e.key===","?".":e.key); render(); return; }
@@ -5556,6 +6015,7 @@ document.getElementById("menuMovil").onclick=abrirMenuMovil;
 document.getElementById("floorbtn").onclick=menuPisos;
 document.getElementById("fabU").onclick=undo;
 document.getElementById("fabR").onclick=redo;
+document.getElementById("btnMedida").onclick=abrirMedidaPad;
 document.getElementById("fabOK").onclick=()=>{ if(pendingPlace){ const pp=pendingPlace; pendingPlace=null; colocarElemento(pp.cat,{x:pp.x,y:pp.y}); return; } finishDraft(); };
 document.getElementById("fabX").onclick=()=>{ if(pendingPlace){ pendingPlace=null; updateHint(); render(); return; } draft=null; setSel([]); pruneNodes(); updateHint(); render(); };
 // barra "Editar ▲": sube el panel a mid para editar el objeto seleccionado
@@ -5600,8 +6060,13 @@ try{ if(window.parent===window && "serviceWorker" in navigator && location.proto
   // MUERTA: el dedo toca el lienzo y no dibuja nada. Eso pasó de verdad en iPad.
   var habiaSW=!!navigator.serviceWorker.controller;   // false = primera instalación
   navigator.serviceWorker.register("sw.js").then(function(reg){
-    reg.update();                                     // buscar versión nueva en cada arranque
-    setInterval(function(){ try{ reg.update(); }catch(e2){} }, 3600000); // y una vez por hora si queda abierta
+    // update() devuelve una PROMESA: el try/catch no la atrapa. Si se recarga
+    // mientras el service worker se instala, rechaza con InvalidStateError y
+    // salía como error sin atender en cada arranque (lo cazó check-electricista
+    // al servir por http). Falla o no, la próxima apertura vuelve a buscar.
+    var buscar=function(){ try{ var p=reg.update(); if(p&&p.catch)p.catch(function(){}); }catch(e2){} };
+    buscar();                                         // buscar versión nueva en cada arranque
+    setInterval(buscar, 3600000);                     // y una vez por hora si queda abierta
   }).catch(function(){});
   var yaRecargue=false;
   navigator.serviceWorker.addEventListener("controllerchange",function(){
@@ -5625,7 +6090,7 @@ if(window.parent!==window) document.documentElement.classList.add("embed"); // e
 if(!loadSaved()){ seed(); projectId=newProjectId(); projectName="Casa de ejemplo"; }
 // El catálogo se siembra acá y no en normalizeSettings: un usuario NUEVO no tiene
 // config guardada, así que normalizeSettings ni siquiera se llama y se quedaría sin catálogo.
-settings.catalogo=settings.catalogo||[]; sembrarCatalogo(); bodCargar();
+settings.catalogo=settings.catalogo||[]; sembrarCatalogo(); sembrarEnsambles(); bodCargar();
 // Embebida: la app madre puede pedir un proyecto específico con ?proyecto=<nombre>
 try{ const qP=new URLSearchParams(location.search).get("proyecto");
   if(qP){ const ixQ=loadIndex(); const mQ=ixQ.find(p=>String(p.nombre||"").trim().toLowerCase()===qP.trim().toLowerCase());
